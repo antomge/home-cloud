@@ -1,0 +1,19 @@
+[Unit]
+Description=Home Cloud - collecteur de l'ecran de supervision
+After=network-online.target pve-cluster.service
+Wants=network-online.target
+
+[Service]
+User=supervision
+Group=supervision
+EnvironmentFile=/etc/supervision.env
+ExecStart=/usr/bin/python3 /opt/supervision/collecteur.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

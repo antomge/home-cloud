@@ -1,0 +1,26 @@
+[Unit]
+Description=Home Cloud - ecran de supervision (cage + chromium) sur tty1
+After=systemd-user-sessions.service supervision.service getty@tty1.service
+Wants=supervision.service
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+User=kiosque
+PAMName=cage
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+UtmpIdentifier=tty1
+UtmpMode=user
+Environment=XDG_SESSION_TYPE=wayland
+ExecStart=/usr/bin/cage -- /usr/bin/chromium --kiosk --ozone-platform=wayland --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --disable-features=Translate --password-store=basic --check-for-update-interval=31536000 http://127.0.0.1:8088
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

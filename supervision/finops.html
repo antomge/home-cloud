@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FinOps du Home Cloud</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fond:#05080C; --panneau:#0D141C; --bord:#1A2633; --ligne:#131D27; --grille:#17222D;
+  --texte:#D6E2EC; --doux:#9FB2C3; --sourd:#7F93A6; --eteint:#16212C;
+  --accent:#36C5E6; --orange:#F2A33A; --vert:#43C08A;
+  --mono:'JetBrains Mono',ui-monospace,monospace; --sans:'IBM Plex Sans',system-ui,sans-serif;
+  /* couleurs des services : palette categorielle validee (fond sombre), ordre fixe */
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--fond);color:var(--texte);font-family:var(--sans)}
+main{max-width:1280px;margin:0 auto;padding:24px 16px 48px;display:flex;flex-direction:column;gap:18px}
+.mono{font-family:var(--mono)}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;padding-bottom:14px;border-bottom:1px solid #142029}
+h1{margin:0;font-family:var(--mono);font-size:20px;letter-spacing:.16em}
+h2{margin:0;font-family:var(--mono);font-size:12px;font-weight:400;letter-spacing:.16em;text-transform:uppercase;color:var(--sourd)}
+a{color:var(--accent)}
+.bascule{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:999px;border:1px solid rgba(54,197,230,.45);background:rgba(54,197,230,.10);color:#9EE6F7;font-family:var(--mono);font-size:14px;letter-spacing:.08em;text-decoration:none;cursor:pointer;white-space:nowrap}
+.bascule:hover{background:rgba(54,197,230,.22)}
+.duo{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+@media (min-width:1600px){main{max-width:1840px}.duo{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}}
+.sous{font-size:13px;color:var(--sourd)}
+.panneau{background:var(--panneau);border:1px solid var(--bord);border-radius:10px;padding:18px 20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.grille4{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+.grille2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px}
+.valeur{font-family:var(--mono);font-size:40px;font-weight:700;line-height:1;color:var(--accent)}
+.unite{font-family:var(--mono);font-size:16px;color:var(--doux);margin-left:6px}
+.legende{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--doux)}
+.legende span{display:inline-flex;align-items:center;gap:7px}
+.pastille{width:10px;height:10px;border-radius:3px;flex:none}
+#graphique{position:relative;width:100%}
+#graphique svg{display:block;width:100%;height:260px}
+#bulle{position:absolute;pointer-events:none;background:#0A1017;border:1px solid var(--bord);border-radius:8px;padding:10px 12px;font-size:13px;min-width:230px;display:none;z-index:2;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+#bulle .ligne{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:2px 0}
+#bulle .mono{white-space:nowrap}
+@media (max-width:640px){.opt{display:none}}
+table{width:100%;border-collapse:collapse}
+th{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--sourd);text-align:left;padding:0 8px 8px;border-bottom:1px solid var(--bord);white-space:nowrap}
+td{padding:10px 8px;border-bottom:1px solid var(--ligne);font-size:14px;color:var(--doux)}
+td.nom{color:var(--texte);font-weight:600}
+td.n,th.n{text-align:right;font-family:var(--mono);white-space:nowrap}
+.defile{overflow-x:auto}
+.barre{height:6px;border-radius:3px;background:var(--eteint);min-width:60px}
+.barre div{height:6px;border-radius:3px}
+.cout{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--ligne);font-size:14px;color:var(--doux)}
+.cout b{font-family:var(--mono);color:var(--texte);font-weight:600;white-space:nowrap}
+.cout.total{border-bottom:none;font-size:16px;color:var(--texte)}
+.cout.total b{font-size:20px;color:var(--accent)}
+.verdict{font-size:15px;line-height:1.5;color:var(--texte);padding:12px 14px;border-radius:8px;background:#111B25}
+ul.hyp{margin:0;padding-left:18px;color:var(--doux);font-size:14px;line-height:1.6}
+details summary{cursor:pointer;color:var(--sourd);font-size:13px}
+#attente{color:var(--sourd);font-size:14px}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <h1>FINOPS · COÛT DU HOME CLOUD</h1>
+    <div class="sous" id="periode">Chargement…</div>
+  </div>
+  <a class="bascule" href="/">‹ &nbsp;SUPERVISION</a>
+</header>
+<div id="attente">Les premières mesures arrivent : il faut quelques minutes de relevés avant d'afficher des coûts.</div>
+
+<section class="grille4">
+  <div class="panneau"><h2>Puissance à la prise</h2>
+    <div><span class="valeur" id="k-w">--</span><span class="unite">W</span></div>
+    <div class="sous" id="k-w-sous"></div></div>
+  <div class="panneau"><h2>Aujourd'hui</h2>
+    <div><span class="valeur" id="k-auj">--</span><span class="unite">€</span></div>
+    <div class="sous" id="k-auj-sous"></div></div>
+  <div class="panneau"><h2>Ce mois-ci</h2>
+    <div><span class="valeur" id="k-mois">--</span><span class="unite">€</span></div>
+    <div class="sous" id="k-mois-sous"></div></div>
+  <div class="panneau"><h2>Sur un an (projection)</h2>
+    <div><span class="valeur" id="k-an">--</span><span class="unite">€</span></div>
+    <div class="sous" id="k-an-sous"></div></div>
+</section>
+
+<div class="duo">
+<section class="panneau">
+  <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline">
+    <h2>Coût d'électricité par jour et par service · 30 jours</h2>
+    <span class="sous mono" id="prix"></span>
+  </div>
+  <div class="legende" id="legende"></div>
+  <div id="graphique"><svg id="svg" role="img" aria-label="Coût d'électricité par jour, empilé par service"></svg><div id="bulle"></div></div>
+  <details><summary>Voir les données jour par jour</summary><div class="defile"><table id="t-jours"></table></div></details>
+</section>
+
+<section class="panneau">
+  <h2>Imputation des coûts par service · 30 jours (« showback »)</h2>
+  <div class="defile"><table>
+    <thead><tr><th>SERVICE</th><th class="n opt">EN CE MOMENT</th><th class="n">ÉNERGIE</th><th class="n">COÛT</th><th>PART</th><th class="n opt">DONT VARIABLE</th></tr></thead>
+    <tbody id="t-services"></tbody></table></div>
+  <div class="sous">Part <b>variable</b> : le processeur au-dessus de son repos, répartie selon le temps processeur réellement consommé.
+    Part <b>fixe</b> : repos du processeur, disques et carte mère, répartie selon la mémoire réservée (comme une capacité réservée dans le cloud).</div>
+</section>
+</div>
+
+<section class="grille2">
+  <div class="panneau"><h2>Home Cloud · coût total par mois</h2><div id="tco"></div></div>
+  <div class="panneau"><h2>Équivalent Azure · par mois</h2><div id="azure"></div></div>
+</section>
+<div class="verdict" id="verdict" style="display:none"></div>
+
+<section class="panneau">
+  <h2>Méthode et hypothèses</h2>
+  <ul class="hyp" id="hypotheses"></ul>
+</section>
+</main>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const COULEURS = { "jellyfin": "--s1", "immich": "--s2", "partage": "--s3", "adguard": "--s4", "proxy": "--s5", "Proxmox (hôte)": "--s6" };
+const AUTRES = "--s7";
+const fr = (n, d = 0) => n == null ? "--" : Number(n).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const eur = (n) => n == null ? "--" : fr(n, Math.abs(n) < 1 ? 3 : 2);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const couleur = (nom) => css(COULEURS[nom] || AUTRES);
+function el(tag, props, enfants) {
+  const e = document.createElement(tag);
+  if (props) for (const [k, v] of Object.entries(props)) { if (k === "style") e.style.cssText = v; else if (k === "class") e.className = v; else e[k] = v; }
+  for (const c of [].concat(enfants ?? [])) e.append(c);
+  return e;
+}
+const svgEl = (tag, attrs) => { const e = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+const jourCourt = (iso) => { const d = new Date(iso + "T12:00:00"); return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" }); };
+
+let derniere = null;
+
+function graphique(f) {
+  const svg = $("svg"), bulle = $("bulle");
+  const W = svg.clientWidth || 800, H = 260, g = 58, d = 10, h = 14, b = 26;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.replaceChildren();
+  const ordre = f.services.map(s => s.nom);
+  const jours = f.historique;
+  const totaux = jours.map(j => Object.values(j.services).reduce((a, x) => a + x, 0));
+  const max = Math.max(0.01, ...totaux);
+  const pas = [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 2].find(p => max / p <= 4) || 5;
+  const haut = Math.ceil(max / pas) * pas;
+  const y = (v) => h + (H - h - b) * (1 - v / haut);
+  for (let v = 0; v <= haut + 1e-9; v += pas) {
+    svg.append(svgEl("line", { x1: g, x2: W - d, y1: y(v), y2: y(v), stroke: css("--grille"), "stroke-width": 1 }));
+    const t = svgEl("text", { x: g - 8, y: y(v) + 4, "text-anchor": "end", fill: css("--sourd"), "font-size": 11, "font-family": "JetBrains Mono, monospace" });
+    t.textContent = fr(v, pas < 0.1 ? 2 : pas < 1 ? 1 : 0) + " €"; svg.append(t);
+  }
+  const larg = (W - g - d) / jours.length, barre = Math.max(4, larg - 4);
+  jours.forEach((j, i) => {
+    const x = g + i * larg + (larg - barre) / 2;
+    let base = 0;
+    const segs = ordre.filter(n => j.services[n] > 0);
+    segs.forEach((nom, k) => {
+      const v = j.services[nom], y1 = y(base + v), y0 = y(base);
+      const hauteur = Math.max(0, y0 - y1 - (k > 0 ? 2 : 0));            // 2 px d'écart entre segments
+      if (hauteur > 0) {
+        const r = k === segs.length - 1 ? Math.min(4, hauteur, barre / 2) : 0;   // coins arrondis en haut seulement
+        const p = `M${x},${y0 - (k > 0 ? 2 : 0)} V${y1 + r} Q${x},${y1} ${x + r},${y1} H${x + barre - r} Q${x + barre},${y1} ${x + barre},${y1 + r} V${y0 - (k > 0 ? 2 : 0)} Z`;
+        svg.append(svgEl("path", { d: p, fill: couleur(nom) }));
+      }
+      base += v;
+    });
+    const tous = Math.max(1, Math.ceil(64 / larg));            // une etiquette tous les N jours, sans chevauchement
+    if ((jours.length - 1 - i) % tous === 0) {
+      const dernier = i === jours.length - 1;
+      const t = svgEl("text", { x: dernier ? x + barre : x + barre / 2, y: H - 8, "text-anchor": dernier ? "end" : "middle", fill: css("--sourd"), "font-size": 11, "font-family": "JetBrains Mono, monospace" });
+      t.textContent = jourCourt(j.date); svg.append(t);
+    }
+    const zone = svgEl("rect", { x: g + i * larg, y: h, width: larg, height: H - h - b, fill: "transparent" });
+    zone.addEventListener("mouseenter", () => montrer(i));
+    zone.addEventListener("touchstart", () => montrer(i), { passive: true });
+    zone.addEventListener("mouseleave", () => { bulle.style.display = "none"; });
+    svg.append(zone);
+  });
+  function montrer(i) {
+    const j = jours[i];
+    const lignes = ordre.filter(n => j.services[n] > 0).map(n => el("div", { class: "ligne" }, [
+      el("span", { style: "display:inline-flex;align-items:center;gap:7px;color:var(--doux)" }, [el("span", { class: "pastille", style: "background:" + couleur(n) }), n]),
+      el("span", { class: "mono", style: "color:var(--texte)" }, eur(j.services[n]) + " €")]));
+    bulle.replaceChildren(
+      el("div", { style: "font-weight:600;margin-bottom:6px" }, new Date(j.date + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })),
+      ...(lignes.length ? lignes : [el("div", { style: "color:var(--sourd)" }, "Pas de mesure ce jour-là")]),
+      el("div", { class: "ligne", style: "border-top:1px solid var(--bord);margin-top:6px;padding-top:6px" }, [
+        el("span", { style: "color:var(--sourd)" }, j.kwh != null ? fr(j.kwh, 2) + " kWh · mesuré " + fr(j.heures, 0) + " h / 24" : ""),
+        el("span", { class: "mono", style: "font-weight:600" }, eur(totaux[i]) + " €")]));
+    bulle.style.display = "block";
+    const x = g + i * larg + larg / 2, bw = bulle.offsetWidth;
+    bulle.style.left = Math.min(Math.max(0, x - bw / 2), W - bw) + "px";
+    bulle.style.top = "0px";
+  }
+  $("legende").replaceChildren(...ordre.map(n => el("span", null, [el("span", { class: "pastille", style: "background:" + couleur(n) }), n])));
+  $("t-jours").replaceChildren(
+    el("thead", null, el("tr", null, [el("th", null, "JOUR"), el("th", { class: "n" }, "kWh"), el("th", { class: "n" }, "COÛT"), el("th", { class: "n" }, "HEURES MESURÉES")])),
+    el("tbody", null, jours.slice().reverse().filter(j => j.kwh != null).map((j, k) => el("tr", null, [
+      el("td", null, jourCourt(j.date)), el("td", { class: "n" }, fr(j.kwh, 3)),
+      el("td", { class: "n" }, eur(Object.values(j.services).reduce((a, x) => a + x, 0)) + " €"), el("td", { class: "n" }, fr(j.heures, 1))]))));
+}
+
+function afficher(f) {
+  derniere = f;
+  const pret = f.trente_jours && f.trente_jours.heures_mesurees > 0;
+  $("attente").style.display = pret ? "none" : "block";
+  const ins = f.instant || {};
+  $("periode").textContent = "Mis à jour " + new Date(f.maj * 1000).toLocaleString("fr-FR", { weekday: "long", hour: "2-digit", minute: "2-digit" })
+    + " · " + fr(f.trente_jours.heures_mesurees, 0) + " h de mesures sur 30 jours";
+  $("k-w").textContent = fr(ins.p_mur, 0);
+  $("k-w-sous").textContent = ins.p_proc != null ? `dont processeur ${fr(ins.p_proc, 1)} W (${ins.source}) · repos ${fr(ins.repos_proc, 1)} W` : "";
+  $("k-auj").textContent = eur(f.aujourdhui.eur);
+  $("k-auj-sous").textContent = fr(f.aujourdhui.kwh, 3) + " kWh depuis minuit";
+  $("k-mois").textContent = eur(f.mois.eur);
+  $("k-mois-sous").textContent = f.mois.projection_eur != null ? `projection fin de mois : ${eur(f.mois.projection_eur)} €` : "projection disponible après 1 h de mesures";
+  $("k-an").textContent = fr(f.annee_projection_eur, 0);
+  $("k-an-sous").textContent = f.trente_jours.p_moyenne_w != null ? `au rythme moyen de ${fr(f.trente_jours.p_moyenne_w, 1)} W` : "";
+  $("prix").textContent = fr(f.prix_kwh, 4) + " €/kWh";
+
+  if (pret) graphique(f);
+
+  const totalKwh = f.services.reduce((a, s) => a + s.kwh, 0) || 1;
+  $("t-services").replaceChildren(...f.services.map(s => el("tr", null, [
+    el("td", { class: "nom" }, el("span", { style: "display:inline-flex;align-items:center;gap:9px" }, [el("span", { class: "pastille", style: "background:" + couleur(s.nom) }), s.nom])),
+    el("td", { class: "n opt" }, (ins.services_w && ins.services_w[s.nom] != null ? fr(ins.services_w[s.nom], 1) : "--") + " W"),
+    el("td", { class: "n" }, fr(s.kwh, 3) + " kWh"),
+    el("td", { class: "n", style: "color:var(--texte)" }, eur(s.eur) + " €"),
+    el("td", null, el("div", { style: "display:flex;align-items:center;gap:10px" }, [
+      el("div", { class: "barre", style: "flex:1" }, el("div", { style: `width:${s.kwh / totalKwh * 100}%;background:${couleur(s.nom)}` })),
+      el("span", { class: "mono", style: "font-size:13px;width:44px;text-align:right" }, fr(s.part, 0) + " %")])),
+    el("td", { class: "n opt" }, fr(s.kwh ? s.kwh_variable / s.kwh * 100 : 0, 0) + " %")])));
+
+  // Coût total de possession
+  const t = f.tco, az = f.azure || {};
+  const ligne = (lib, val, cls) => el("div", { class: "cout" + (cls ? " " + cls : "") }, [el("span", null, lib), el("b", null, val)]);
+  $("tco").replaceChildren(
+    ligne("Électricité (au rythme moyen mesuré)", t.electricite != null ? eur(t.electricite) + " €" : "--"),
+    ligne(`Matériel acheté (${fr(t.materiel.reduce((a, m) => a + m.prix, 0), 2)} € amortis sur ${t.duree_amortissement_mois} mois)`, eur(t.amortissement) + " €"),
+    ligne("Nom de domaine", t.domaine_renseigne ? eur(t.domaine) + " €" : "à renseigner"),
+    ligne("Total", eur(t.total) + " €", "total"));
+  if (az.ok) {
+    $("azure").replaceChildren(
+      ligne(`Machine virtuelle ${az.vm.libelle_court}, Linux, ${az.region_libelle}`, eur(az.vm.mois) + " €"),
+      ligne(az.disque.libelle_court, eur(az.disque.mois) + " €"),
+      ligne("Total", eur(az.total_mois) + " €", "total"),
+      el("div", { class: "sous" }, `Prix publics à l'usage relevés le ${new Date(az.date).toLocaleDateString("fr-FR")} sur prices.azure.com${az.avertissement ? " · " + az.avertissement : ""}.`));
+    const v = $("verdict");
+    v.style.display = "block";
+    const r = az.total_mois / Math.max(t.total, 0.01);
+    v.textContent = `À capacité comparable, le même service coûterait environ ${eur(az.total_mois)} € par mois sur Azure, contre ${eur(t.total)} € chez toi`
+      + (r >= 1.5 ? `, soit ${fr(r, 0)} fois plus. ` : r >= 1 ? `, un peu plus cher. ` : `, moins cher que chez toi. `)
+      + `Mais le cloud apporte ce que le serveur maison n'a pas : haute disponibilité, centre de données, sauvegarde hors site, aucune panne matérielle à gérer.`;
+  } else {
+    $("azure").replaceChildren(el("div", { class: "sous" }, "Prix Azure indisponibles pour l'instant" + (az.erreur ? " : " + az.erreur : ".")));
+  }
+
+  const h = f.hypotheses || {};
+  $("hypotheses").replaceChildren(...[
+    `Prix de l'électricité : ${fr(f.prix_kwh, 4)} €/kWh — ${f.source_prix}. L'abonnement n'est pas compté : il serait payé même sans serveur (coût non imputable).`,
+    `Processeur : énergie mesurée chaque minute par ses compteurs intégrés (RAPL). Le reste du PC est estimé à ${fr(h.autres_composants_w, 0)} W : ${h.detail_autres}`,
+    `Rendement de l'alimentation supposé : ${fr((h.rendement_alimentation || 0) * 100, 0)} %. Une prise wattmètre permettrait de confirmer la puissance réelle.`,
+    `Répartition : part variable selon le temps processeur ; part fixe selon la mémoire réservée (l'hôte Proxmox compte pour ${fr(h.memoire_reservee_hote_mo, 0)} Mo). Le transcodage matériel de Jellyfin passe par la puce graphique : il est un peu sous-estimé par la clé « temps processeur ».`,
+    `Coût total de possession : seuls les achats faits pour le projet sont amortis ; les pièces que tu avais déjà sont des coûts irrécupérables, hors calcul.`,
+    `Équivalent Azure : tarif à l'usage, sans réservation ni remise ; la sortie de données (streaming) et les sauvegardes ne sont pas comptées, ce qui avantage Azure.`,
+  ].map(x => el("li", null, x)));
+}
+
+async function rafraichir() {
+  try {
+    const r = await fetch("/api/etat", { cache: "no-store" });
+    const e = await r.json();
+    if (e.finops) afficher(e.finops);
+  } catch (err) { $("periode").textContent = "Données indisponibles : le collecteur ne répond pas"; }
+}
+rafraichir(); setInterval(rafraichir, 30000);
+addEventListener("resize", () => { if (derniere) graphique(derniere); });
+</script>
+</body>
+</html>

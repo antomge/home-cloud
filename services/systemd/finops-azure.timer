@@ -1,0 +1,9 @@
+[Unit]
+Description=Prix Azure chaque semaine
+
+[Timer]
+OnCalendar=Mon 06:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

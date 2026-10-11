@@ -1,0 +1,7 @@
+# Secrets et fichiers d'environnement : jamais dans le depot
+*.env
+!*.env.exemple
+# Archives d'export et sauvegardes
+*.tar.gz
+*.avant-*
+__pycache__/

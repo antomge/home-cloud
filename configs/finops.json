@@ -1,0 +1,24 @@
+{
+  "prix_kwh_eur": 0.2001,
+  "source_prix": "Tarif Bleu EDF option Base (6 kVA), en vigueur depuis le 1er août 2026",
+  "autres_composants_w": 14,
+  "detail_autres": "WD Red Plus ≈ 4,5 W, Barracuda ≈ 4,5 W, SSD ≈ 0,5 W, carte mère + mémoire + ventilateurs ≈ 4,5 W (estimation à confronter à une prise wattmètre)",
+  "rendement_alimentation": 0.85,
+  "memoire_reservee_hote_mo": 2048,
+  "estimation_sans_rapl": {"repos_w": 5, "max_w": 65},
+  "materiel": [
+    {"nom": "Processeur Intel Core i5-9500 (reconditionné)", "prix": 99.99},
+    {"nom": "Disque WD Red Plus 4 To", "prix": 224.98},
+    {"nom": "Switch TP-Link TL-SG605E", "prix": 18.99}
+  ],
+  "amortissement_mois": 36,
+  "domaine_eur_an": 10.20,
+  "azure": {
+    "region": "francecentral",
+    "region_libelle": "France Centre",
+    "vm": "Standard_B4ms",
+    "vm_libelle": "B4ms (4 vCPU, 16 Go)",
+    "disque": "S50 LRS",
+    "disque_libelle": "Disque HDD standard S50 (4 To)"
+  }
+}

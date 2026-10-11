@@ -1,0 +1,41 @@
+# Exemple de configuration Caddy du Home Cloud (domaine et adresses remplaces par des valeurs d'exemple).
+# Le jeton Cloudflare n'est jamais ecrit ici : il vient de /etc/caddy/cloudflare.env (variable CF_API_TOKEN).
+# Home Cloud - proxy inverse. Ajouter un service = un bloc @nom + handle, puis : systemctl reload caddy
+*.maison.exemple.fr {
+	tls {
+		dns cloudflare {env.CF_API_TOKEN}
+		resolvers 1.1.1.1
+	}
+	encode zstd gzip
+
+	@jellyfin host jellyfin.maison.exemple.fr
+	handle @jellyfin {
+		reverse_proxy 192.168.1.27:8096
+	}
+	@immich host immich.maison.exemple.fr
+	handle @immich {
+		reverse_proxy 192.168.1.29:2283
+	}
+	@adguard host adguard.maison.exemple.fr
+	handle @adguard {
+		reverse_proxy 192.168.1.30:80
+	}
+	@proxmox host proxmox.maison.exemple.fr
+	handle @proxmox {
+		reverse_proxy https://192.168.1.33:8006 {
+			transport http {
+				tls_insecure_skip_verify
+			}
+		}
+	}
+	@tableau host tableau.maison.exemple.fr
+	handle @tableau {
+		reverse_proxy 100.64.0.10:80 {
+			header_up Host anto-serveur-cloud.tailXXXXXX.ts.net
+		}
+	}
+
+	handle {
+		respond "Service inconnu sur maison.exemple.fr" 404
+	}
+}

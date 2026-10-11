@@ -1,0 +1,7 @@
+[Unit]
+Description=Home Cloud - releve SMART des disques pour l'ecran
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/sbin/releve-smart.py
+Nice=19

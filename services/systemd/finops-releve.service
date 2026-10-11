@@ -1,0 +1,7 @@
+[Unit]
+Description=Home Cloud - releve FinOps (energie et imputation par service)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/sbin/finops-releve.py
+Nice=10

@@ -1,0 +1,9 @@
+[Unit]
+Description=Home Cloud - tri des photos par annee et par mois
+RequiresMountsFor=/mnt/wd
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/sbin/tri-photos.py
+Nice=19
+IOSchedulingClass=idle

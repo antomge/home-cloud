@@ -1,0 +1,7 @@
+# <file system> <mount point> <type> <options> <dump> <pass>
+/dev/pve/root / ext4 errors=remount-ro 0 1
+UUID=92B2-ED4F /boot/efi vfat defaults 0 1
+/dev/pve/swap none swap sw 0 0
+proc /proc proc defaults 0 0
+UUID=886e9f9b-cf8b-4590-abd4-d2301cd43e88 /mnt/wd ext4 defaults,noatime,nofail 0 2
+UUID=b4e15bfd-b11d-4eba-b2a3-e312ee6e1366 /mnt/barracuda ext4 defaults,noatime,nofail 0 2
