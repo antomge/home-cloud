@@ -46,6 +46,10 @@ Pas de bureau complet : **cage** (un compositeur Wayland « kiosque ») lance **
 
 `tailscale serve --bg --http=80 8088` publie la page sur l'adresse Tailscale du serveur, et seulement là ; elle est aussi accessible en HTTPS par le [proxy](10-proxy-https.md) : `https://tableau.maison.<domaine>`.
 
+## Page de liens — `/liens`
+
+Une page simple qui regroupe tous les accès (services, administration, dossiers partagés avec bouton « Copier »), à mettre en favori : `https://tableau.maison.<domaine>/liens`. Script : `scripts/13-ajout-liens.sh`.
+
 ## Relevés SMART — `services/releve-smart.py`
 
 Toutes les 10 minutes : température, heures de fonctionnement, secteurs réalloués ou en attente pour les disques durs, volume écrit rapporté à l'endurance pour le SSD. Les seuils « À surveiller » et « Critique » sont calculés et affichés sur l'écran.

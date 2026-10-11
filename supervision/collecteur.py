@@ -293,6 +293,13 @@ class Gestionnaire(BaseHTTPRequestHandler):
             with verrou:
                 corps = json.dumps(etat).encode()
             typ = "application/json"
+        elif self.path in ("/liens", "/links"):
+            try:
+                with open(os.path.join(os.path.dirname(PAGE), "liens.html"), "rb") as f:
+                    corps = f.read()
+            except OSError:
+                corps = "Page des liens absente".encode()
+            typ = "text/html; charset=utf-8"
         elif self.path in ("/finops", "/finops.html"):
             try:
                 with open(os.path.join(os.path.dirname(PAGE), "finops.html"), "rb") as f:
