@@ -8,8 +8,8 @@
 
 | Disque | Montage | Contenu |
 |---|---|---|
-| WD Red Plus 4 To | `/mnt/wd` | `photos/`, `films/`, `immich/`, `sauvegardes/`, `transcodage-jellyfin/` |
-| Barracuda 2 To | `/mnt/barracuda` | `copie-photos/actuel` et `copie-photos/corbeille` |
+| WD Red Plus 4 To | `/mnt/wd` | `photos/`, `films/`, `papiers/`, `immich/`, `sauvegardes/`, `transcodage-jellyfin/` |
+| Barracuda 2 To | `/mnt/barracuda` | `copie-photos/` et `copie-papiers/` (chacun avec `actuel` et `corbeille`) |
 
 ## Comment les conteneurs voient les données
 
@@ -33,7 +33,7 @@ Elles protègent le **système** des conteneurs (configuration, base de données
 
 ### 2. Copie des photos avec corbeille — `services/copie-photos.sh`
 
-Chaque nuit à **3 h**, `rsync` recopie `/mnt/wd/photos` vers le Barracuda :
+Chaque nuit à **3 h**, `rsync` recopie `/mnt/wd/photos` et `/mnt/wd/papiers` vers le Barracuda :
 
 - un fichier supprimé ou modifié sur le WD n'est pas perdu : l'ancienne version part dans `corbeille/<date>/` et y reste **90 jours** (équivalent de la *suppression réversible* du stockage Azure) ;
 - **sécurité anti-catastrophe** : si le dossier source est vide alors que la copie contient des fichiers (disque mal monté, effacement massif), la copie est **annulée** au lieu d'effacer la copie ;
@@ -51,7 +51,7 @@ systemctl daemon-reload && systemctl enable --now copie-photos.timer
 
 - **RPO** (perte de données maximale) : 24 h pour les photos et les conteneurs.
 - **RTO** (temps de remise en service) : quelques minutes pour restaurer un conteneur depuis l'interface Proxmox.
-- **3-2-1** : 3 copies, sur 2 supports, dont 1 hors site. Ici : 2 copies des photos, sur 2 disques, **mais aucune hors site**. C'est la limite principale du projet, assumée.
+- **3-2-1** : 3 copies, sur 2 supports, dont 1 hors site. Ici : 2 copies des photos et des papiers, sur 2 disques, **mais aucune hors site**. C'est la limite principale du projet, assumée.
 
 ## Surveillance de la santé des disques
 

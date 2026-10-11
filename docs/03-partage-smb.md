@@ -4,7 +4,7 @@ Script : `scripts/02-creer-partage.sh` · Configuration : `configs/conteneurs/sm
 
 ## Rôle
 
-Déposer et récupérer photos et films depuis un PC Windows (`\\192.168.1.26\photos` à la maison) ou depuis l'app Fichiers de l'iPhone. En déplacement, on utilise le nom Tailscale du conteneur à la place de son adresse.
+Déposer et récupérer photos, films et papiers personnels depuis un PC Windows (`\\192.168.1.26\photos` à la maison) ou depuis l'app Fichiers de l'iPhone. En déplacement, on utilise le nom Tailscale du conteneur à la place de son adresse.
 
 ## Choix de configuration
 
@@ -16,9 +16,20 @@ Déposer et récupérer photos et films depuis un PC Windows (`\\192.168.1.26\ph
 | `valid users = anto` | Un compte nommé par partage, mot de passe saisi en masqué à l'installation |
 | `vfs objects = fruit streams_xattr` | Compatibilité avec l'app Fichiers d'iOS et macOS |
 
+## Le partage « papiers » (documents personnels)
+
+Ajouté avec `scripts/14-ajout-papiers.sh` pour les pièces d'identité, attestations et certificats :
+
+- dossier en `700` : seul `anto` y accède, et il n'est monté dans **aucun** autre conteneur (ni Jellyfin, ni Immich) ;
+- `server smb encrypt = desired` : chiffrement SMB3 dès que l'appareil le permet, même sur le réseau local ;
+- `veto files` : les fichiers exécutables et scripts (`.exe`, `.bat`, `.js`, `.ps1`…) sont refusés ;
+- copié chaque nuit sur le Barracuda, avec corbeille de 90 jours.
+
+Limite : les fichiers ne sont pas chiffrés sur le disque lui-même ; un vol du serveur les exposerait.
+
 ## Droits
 
-Les dossiers appartiennent à `101000:101000` sur l'hôte, c'est-à-dire à l'utilisateur `anto` (UID 1000) **dans** le conteneur non privilégié. Le conteneur n'a accès qu'aux deux dossiers montés, rien d'autre du serveur.
+Les dossiers appartiennent à `101000:101000` sur l'hôte, c'est-à-dire à l'utilisateur `anto` (UID 1000) **dans** le conteneur non privilégié. Le conteneur n'a accès qu'aux trois dossiers montés, rien d'autre du serveur.
 
 ## Ressources
 

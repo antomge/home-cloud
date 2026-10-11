@@ -130,6 +130,7 @@ captures/      photos et captures d'écran
 | 10. Proxy inverse HTTPS | [10-proxy-https.md](docs/10-proxy-https.md) | `10-creer-proxy.sh` |
 | 11. FinOps | [11-finops.md](docs/11-finops.md) | `11-installer-finops.sh`, `12-ajout-bascule.sh` |
 | Page de liens rapides | [06-supervision.md](docs/06-supervision.md) | `13-ajout-liens.sh` |
+| Dossier « papiers » personnel | [03-partage-smb.md](docs/03-partage-smb.md) | `14-ajout-papiers.sh` |
 | Sécurité | [securite.md](docs/securite.md) | `exporter-home-cloud.sh` |
 | Problèmes rencontrés | [lecons-apprises.md](docs/lecons-apprises.md) | — |
 
