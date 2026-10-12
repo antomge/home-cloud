@@ -50,6 +50,16 @@ No full desktop: **cage** (a "kiosk" Wayland compositor) launches **Chromium in 
 
 A simple page that gathers every access point (services, administration, shared folders with a "Copier" ("copy") button), meant to be bookmarked: `https://tableau.maison.<domain>/liens`. Script: `scripts/13-add-links-page.sh`.
 
+## Turning the PC on remotely (Wake-on-LAN)
+
+Script: `scripts/15-add-wake-on-lan.sh`. The "Mon PC" section at the top of `/liens` shows whether the gaming PC is on and has an **Allumer** ("turn on") button.
+
+- **How it works:** a powered-off PC keeps its Ethernet adapter listening. The collector sends a *magic packet* (6 bytes `FF`, then the PC's MAC address repeated 16 times) as a UDP broadcast on the LAN, ports 9 and 7. Because the server is inside the home network, the button also works from a phone over 5G: the phone talks to the server through Tailscale, and the server wakes the PC locally. No port is opened on the router.
+- **Status:** `GET /api/pc` reads `tailscale status --json`; the PC counts as on once its Tailscale client is online (1 to 2 minutes after power-on).
+- **Protection:** `POST /api/pc/reveil` requires an `X-Reveil: 1` header. A plain HTML form or link on another website cannot add a custom header, so it cannot trigger the wake-up behind the user's back (a simple CSRF defense). At most one packet burst every 10 seconds.
+- **PC prerequisites:** Wake on LAN enabled in the BIOS with the "S5 maximum power savings" / ErP option disabled, "Wake on Magic Packet" enabled on the Ethernet adapter, and Windows Fast Startup disabled (otherwise "Shut down" is a hybrid hibernation that often leaves the adapter unarmed).
+- **Cloud equivalent:** the "Start" button of an Azure VM (deallocated VMs cost nothing in compute, the basis of "shut down at night" FinOps savings).
+
 ## SMART readings — `services/releve-smart.py`
 
 Every 10 minutes: temperature, power-on hours, reallocated or pending sectors for the hard drives, and data written relative to rated endurance for the SSD. The "À surveiller" ("watch") and "Critique" ("critical") thresholds are computed and shown on the screen.

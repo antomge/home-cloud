@@ -8,6 +8,7 @@ Standard library only (no dependency to install).
 import glob
 import json
 import os
+import socket
 import ssl
 import subprocess
 import threading
@@ -287,6 +288,52 @@ def boucle_lente():
 
 # ---------- Web server ----------
 
+PC_MAC = os.environ.get("PC_MAC", "")
+PC_TAILSCALE = os.environ.get("PC_TAILSCALE", "")
+PC_DIFFUSION = os.environ.get("PC_DIFFUSION", "192.168.1.255")
+dernier_reveil = [0.0]
+
+
+def etat_pc():
+    """Is the PC on? Check whether it is online in Tailscale."""
+    if not (PC_MAC and PC_TAILSCALE):
+        return {"configure": False}
+    try:
+        r = subprocess.run(["tailscale", "status", "--json"],
+                           capture_output=True, text=True, timeout=5)
+        pairs = json.loads(r.stdout).get("Peer") or {}
+        for p in pairs.values():
+            nom = (p.get("DNSName") or "").split(".")[0].lower()
+            if nom == PC_TAILSCALE.lower():
+                return {"configure": True, "en_ligne": bool(p.get("Online"))}
+        return {"configure": True, "en_ligne": False,
+                "erreur": "machine introuvable dans Tailscale"}
+    except Exception as e:
+        return {"configure": True, "en_ligne": False, "erreur": str(e)[:150]}
+
+
+def reveiller_pc():
+    """Send the Wake-on-LAN magic packet: 6 x FF, then the MAC address 16 times."""
+    if not PC_MAC:
+        return {"ok": False, "erreur": "PC_MAC non configure"}
+    if time.time() - dernier_reveil[0] < 10:
+        return {"ok": False, "erreur": "signal deja envoye, patiente quelques secondes"}
+    try:
+        octets = bytes.fromhex(PC_MAC.replace(":", "").replace("-", ""))
+        if len(octets) != 6:
+            raise ValueError("adresse MAC invalide")
+        paquet = b"\xff" * 6 + octets * 16
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            for _ in range(3):
+                for port in (9, 7):
+                    s.sendto(paquet, (PC_DIFFUSION, port))
+        dernier_reveil[0] = time.time()
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "erreur": str(e)[:150]}
+
+
 class Gestionnaire(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/api/etat"):
@@ -300,6 +347,9 @@ class Gestionnaire(BaseHTTPRequestHandler):
             except OSError:
                 corps = "Page des liens absente".encode()
             typ = "text/html; charset=utf-8"
+        elif self.path.startswith("/api/pc"):
+            corps = json.dumps(etat_pc()).encode()
+            typ = "application/json"
         elif self.path in ("/finops", "/finops.html"):
             try:
                 with open(os.path.join(os.path.dirname(PAGE), "finops.html"), "rb") as f:
@@ -319,6 +369,19 @@ class Gestionnaire(BaseHTTPRequestHandler):
             return
         self.send_response(200)
         self.send_header("Content-Type", typ)
+        self.send_header("Content-Length", str(len(corps)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(corps)
+
+    def do_POST(self):
+        # Required header: another website cannot trigger the wake-up (CSRF)
+        if self.path != "/api/pc/reveil" or self.headers.get("X-Reveil") != "1":
+            self.send_error(403)
+            return
+        corps = json.dumps(reveiller_pc()).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(corps)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()

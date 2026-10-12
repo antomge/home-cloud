@@ -24,11 +24,17 @@ a.lien:hover{border-color:var(--accent)}
 button{background:none;border:1px solid var(--bord);color:var(--doux);border-radius:8px;
   padding:8px 12px;font-size:13px;cursor:pointer;white-space:nowrap}
 button:hover{border-color:var(--accent);color:var(--accent)}
+button:disabled{opacity:.5;cursor:default}
 </style>
 </head>
 <body>
 <main>
 <h1>LIENS · HOME CLOUD</h1>
+
+<h2>Mon PC</h2>
+<div class="lien"><div><div class="nom">PC de jeu</div>
+  <div class="det" id="pc-etat">verification...</div></div>
+  <button id="pc-bouton">Allumer</button></div>
 
 <h2>Services</h2>
 <a class="lien" href="https://jellyfin.maison.example.com"><div><div class="nom">Jellyfin</div>
@@ -70,6 +76,42 @@ document.querySelectorAll("button[data-copie]").forEach(b => b.addEventListener(
   catch (e) { b.textContent = "Échec"; }
   setTimeout(() => { b.textContent = "Copier"; }, 1500);
 }));
+</script>
+<script>
+const pcEtat = document.getElementById("pc-etat");
+const pcBouton = document.getElementById("pc-bouton");
+let pcAttente = false;
+function pcBoutonEtat(actif, texte) { pcBouton.disabled = !actif; pcBouton.textContent = texte; }
+async function etatPc() {
+  try {
+    const e = await (await fetch("/api/pc", { cache: "no-store" })).json();
+    if (!e.configure) { pcEtat.textContent = "non configuré"; pcBoutonEtat(false, "Allumer"); return; }
+    if (e.en_ligne) {
+      pcAttente = false; pcEtat.textContent = "● allumé"; pcEtat.style.color = "#43C08A";
+      pcBoutonEtat(false, "Allumé"); return;
+    }
+    pcEtat.style.color = "";
+    if (!pcAttente) {
+      pcEtat.textContent = "○ éteint" + (e.erreur ? " (" + e.erreur + ")" : "");
+      pcBoutonEtat(true, "Allumer");
+    }
+  } catch (err) { pcEtat.textContent = "état indisponible"; }
+}
+pcBouton.addEventListener("click", async () => {
+  pcBoutonEtat(false, "Envoi…");
+  try {
+    const r = await fetch("/api/pc/reveil", { method: "POST", headers: { "X-Reveil": "1" } });
+    const e = await r.json();
+    if (e.ok) {
+      pcAttente = true; pcEtat.textContent = "démarrage en cours (1 à 2 min)…";
+      pcBoutonEtat(false, "Signal envoyé");
+    } else {
+      pcEtat.textContent = "échec : " + (e.erreur || "?"); pcBoutonEtat(true, "Allumer");
+    }
+  } catch (err) { pcEtat.textContent = "échec de l'envoi"; pcBoutonEtat(true, "Allumer"); }
+  setTimeout(() => { pcAttente = false; etatPc(); }, 180000);
+});
+etatPc(); setInterval(etatPc, 10000);
 </script>
 </body>
 </html>

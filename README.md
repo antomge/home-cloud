@@ -54,7 +54,7 @@ flowchart LR
 | **102 · jellyfin** | Movie streaming (Streamyfin on iPhone, including over 5G) | 4 cores, 3 GB | Intel Quick Sync hardware transcoding, movies mounted **read-only** |
 | **103 · immich** | Photo gallery with content-based search (multilingual model) | 4 cores, 7 GB | Docker inside an unprivileged LXC, photos **read-only** |
 | **104 · proxy** | Single HTTPS entry point | 1 core, 512 MB | Caddy, Let's Encrypt wildcard certificate via DNS challenge |
-| **Host** | Monitoring, HDMI screen, backups, FinOps, photo sorting | — | Dependency-free Python collector, systemd timers |
+| **Host** | Monitoring, HDMI screen, backups, FinOps, photo sorting, PC wake-up | — | Dependency-free Python collector, systemd timers |
 
 ---
 
@@ -131,6 +131,7 @@ screenshots/   photos and screenshots
 | 11. FinOps | [11-finops.md](docs/11-finops.md) | `11-install-finops.sh`, `12-add-dashboard-toggle.sh` |
 | Quick links page | [06-monitoring-dashboard.md](docs/06-monitoring-dashboard.md) | `13-add-links-page.sh` |
 | Personal "papiers" (documents) folder | [03-smb-file-share.md](docs/03-smb-file-share.md) | `14-add-papers-share.sh` |
+| Turn the PC on remotely (Wake-on-LAN) | [06-monitoring-dashboard.md](docs/06-monitoring-dashboard.md) | `15-add-wake-on-lan.sh` |
 | Security | [security.md](docs/security.md) | `export-home-cloud.sh` |
 | Issues encountered | [lessons-learned.md](docs/lessons-learned.md) | — |
 
