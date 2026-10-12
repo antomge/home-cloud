@@ -1,16 +1,16 @@
 #!/bin/bash
-# Home Cloud - rassemble scripts et configurations (SANS SECRETS) pour le depot GitHub
+# Home Cloud - gathers scripts and configurations (WITHOUT SECRETS) for the GitHub repository
 set -uo pipefail
-if [ "$(id -u)" -ne 0 ]; then echo "ERREUR : a lancer en root."; exit 1; fi
+if [ "$(id -u)" -ne 0 ]; then echo "ERROR: must be run as root."; exit 1; fi
 D=$(mktemp -d)/home-cloud-export
-mkdir -p "$D"/{scripts,sbin,supervision,systemd,configs/lxc,configs/conteneurs}
+mkdir -p "$D"/{scripts,sbin,supervision,systemd,configs/lxc,configs/containers}
 
-echo "=== 1. Scripts d'installation (/root) ==="
+echo "=== 1. Installation scripts (/root) ==="
 cp -v /root/*.sh "$D/scripts/" 2>/dev/null
-rm -f "$D/scripts/exporter-home-cloud.sh"
+rm -f "$D/scripts/exporter-home-cloud.sh" "$D/scripts/export-home-cloud.sh"
 
 echo
-echo "=== 2. Scripts de service et supervision ==="
+echo "=== 2. Service and monitoring scripts ==="
 for f in copie-photos.sh releve-smart.py tri-photos.py finops-releve.py finops-azure.py; do
   [ -f "/usr/local/sbin/$f" ] && cp -v "/usr/local/sbin/$f" "$D/sbin/"
 done
@@ -24,7 +24,7 @@ done
 ls "$D/systemd"
 
 echo
-echo "=== 3. Configurations (sans secrets) ==="
+echo "=== 3. Configurations (without secrets) ==="
 cp /etc/fstab "$D/configs/fstab"
 cp /etc/pve/jobs.cfg "$D/configs/jobs.cfg" 2>/dev/null
 cp /etc/homecloud/finops.json "$D/configs/finops.json" 2>/dev/null
@@ -34,21 +34,21 @@ for id in $(pct list | awk 'NR>1 {print $1}'); do
 done
 CT_PARTAGE=$(pct list | awk 'NR>1 && $NF=="partage" {print $1}')
 CT_PROXY=$(pct list | awk 'NR>1 && $NF=="proxy" {print $1}')
-[ -n "$CT_PARTAGE" ] && pct exec "$CT_PARTAGE" -- cat /etc/samba/smb.conf > "$D/configs/conteneurs/smb.conf"
-[ -n "$CT_PROXY" ] && pct exec "$CT_PROXY" -- cat /etc/caddy/Caddyfile > "$D/configs/conteneurs/Caddyfile"
+[ -n "$CT_PARTAGE" ] && pct exec "$CT_PARTAGE" -- cat /etc/samba/smb.conf > "$D/configs/containers/smb.conf"
+[ -n "$CT_PROXY" ] && pct exec "$CT_PROXY" -- cat /etc/caddy/Caddyfile > "$D/configs/containers/Caddyfile"
 ls -R "$D/configs"
 
 echo
-echo "=== 4. Controle anti-secrets ==="
+echo "=== 4. Secret check ==="
 ALERTE=$(grep -rnEi '(PVEAPIToken=[^ "$]+=[0-9a-f-]{8,}|CF_API_TOKEN=[A-Za-z0-9_-]{20,}|MediaBrowser Token="[0-9a-f]{32}"|password *[:=] *[^ ]{6,}|\b[0-9a-f]{32}\b)' "$D" \
   | grep -v 'smb.conf.*passdb' || true)
 if [ -n "$ALERTE" ]; then
-  echo "ATTENTION, elements a verifier :"; echo "$ALERTE" | cut -c1-160
+  echo "WARNING, items to review:"; echo "$ALERTE" | cut -c1-160
 else
-  echo "Aucun secret detecte."
+  echo "No secrets detected."
 fi
 
 tar -czf /root/home-cloud-export.tar.gz -C "$(dirname "$D")" home-cloud-export
 rm -rf "$(dirname "$D")"
 echo
-echo "TERMINE : /root/home-cloud-export.tar.gz ($(du -h /root/home-cloud-export.tar.gz | cut -f1))"
+echo "DONE: /root/home-cloud-export.tar.gz ($(du -h /root/home-cloud-export.tar.gz | cut -f1))"

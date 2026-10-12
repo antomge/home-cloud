@@ -1,26 +1,26 @@
 #!/bin/bash
-# Home Cloud - tableau de bord FinOps : mesure de l'energie, cout par service, comparaison Azure
-#   /usr/local/sbin/finops-releve.py   chaque minute (root)  -> /var/lib/homecloud/finops.json
-#   /usr/local/sbin/finops-azure.py    chaque semaine        -> /var/lib/homecloud/azure-prix.json
-#   /etc/homecloud/finops.json         hypotheses (prix du kWh, materiel, equivalent Azure...)
-#   page : https://tableau.maison.exemple.fr/finops
+# Home Cloud - FinOps dashboard: energy measurement, cost per service, Azure comparison
+#   /usr/local/sbin/finops-releve.py   every minute (root)   -> /var/lib/homecloud/finops.json
+#   /usr/local/sbin/finops-azure.py    every week            -> /var/lib/homecloud/azure-prix.json
+#   /etc/homecloud/finops.json         assumptions (kWh price, hardware, Azure equivalent...)
+#   page: https://tableau.maison.example.com/finops
 set -euo pipefail
-if [ "$(id -u)" -ne 0 ]; then echo "ERREUR : a lancer en root."; exit 1; fi
+if [ "$(id -u)" -ne 0 ]; then echo "ERROR: must be run as root."; exit 1; fi
 
-echo "=== 1. Compteurs d'energie du processeur (RAPL) ==="
+echo "=== 1. CPU energy counters (RAPL) ==="
 modprobe intel_rapl_msr 2>/dev/null || true
 if [ -r /sys/class/powercap/intel-rapl:0/energy_uj ]; then
-  echo "RAPL disponible : $(cat /sys/class/powercap/intel-rapl:0/name)"
+  echo "RAPL available: $(cat /sys/class/powercap/intel-rapl:0/name)"
   echo intel_rapl_msr > /etc/modules-load.d/rapl.conf
 else
-  echo "RAPL absent : la puissance du processeur sera ESTIMEE d'apres sa charge."
+  echo "RAPL missing: CPU power will be ESTIMATED from its load."
 fi
 
 echo
-echo "=== 2. Fichiers ==="
+echo "=== 2. Files ==="
 mkdir -p /etc/homecloud /var/lib/homecloud
 if [ -f /etc/homecloud/finops.json ]; then
-  echo "Configuration existante conservee : /etc/homecloud/finops.json"
+  echo "Existing configuration kept: /etc/homecloud/finops.json"
 else
 cat > /etc/homecloud/finops.json <<'FIN_CONF'
 {
@@ -48,19 +48,19 @@ cat > /etc/homecloud/finops.json <<'FIN_CONF'
   }
 }
 FIN_CONF
-  echo "Configuration creee : /etc/homecloud/finops.json"
+  echo "Configuration created: /etc/homecloud/finops.json"
 fi
 cat > /usr/local/sbin/finops-releve.py <<'FIN_RELEVE'
 #!/usr/bin/env python3
-"""Home Cloud - releve FinOps (lance chaque minute par un minuteur systemd, en root).
+"""Home Cloud - FinOps reading (run every minute by a systemd timer, as root).
 
-1. Mesure l'energie du processeur avec ses compteurs RAPL (Intel), en joules.
-2. Estime la puissance a la prise : (processeur + autres composants) / rendement alimentation.
-3. Impute l'energie de chaque minute aux services (showback) :
-   - part VARIABLE (processeur au-dessus du repos) -> au prorata du temps processeur consomme ;
-   - part FIXE (repos + disques + carte mere) -> au prorata de la memoire reservee,
-     comme une capacite reservee dans le cloud.
-4. Cumule par jour, puis ecrit une synthese lisible par le tableau de bord.
+1. Measures CPU energy with its RAPL counters (Intel), in joules.
+2. Estimates power at the wall: (CPU + other components) / power supply efficiency.
+3. Allocates each minute's energy to the services (showback):
+   - VARIABLE share (CPU above idle) -> pro rata of the CPU time consumed;
+   - FIXED share (idle + disks + motherboard) -> pro rata of the reserved memory,
+     like reserved capacity in the cloud.
+4. Accumulates per day, then writes a summary readable by the dashboard.
 """
 import datetime
 import glob
@@ -75,7 +75,7 @@ RAPL = os.environ.get("RAPL_DIR", "/sys/class/powercap")
 CGROUP = os.environ.get("CGROUP_LXC", "/sys/fs/cgroup/lxc")
 PVE_LXC = os.environ.get("PVE_LXC", "/etc/pve/lxc")
 PROC_STAT = os.environ.get("PROC_STAT", "/proc/stat")
-MAINTENANT = float(os.environ.get("FINOPS_MAINTENANT", "0")) or None   # uniquement pour les tests
+MAINTENANT = float(os.environ.get("FINOPS_MAINTENANT", "0")) or None   # for tests only
 
 ETAT = os.path.join(ETAT_DIR, "finops-etat.json")
 SORTIE = os.path.join(ETAT_DIR, "finops.json")
@@ -108,14 +108,14 @@ def ecrire_json(chemin, donnees):
     os.replace(tmp, chemin)
 
 
-# ---------- Mesures ----------
+# ---------- Measurements ----------
 
 def lire_rapl():
-    """Compteurs d'energie des processeurs (paquets), en microjoules."""
+    """CPU energy counters (packages), in microjoules."""
     paquets = {}
     for d in glob.glob(os.path.join(RAPL, "intel-rapl:*")):
         if not re.search(r"intel-rapl:\d+$", d):
-            continue                      # on ignore les sous-domaines (coeurs, graphique...)
+            continue                      # skip the sub-domains (cores, graphics...)
         e, m = lire(os.path.join(d, "energy_uj")), lire(os.path.join(d, "max_energy_range_uj"))
         if e and e.isdigit() and m and m.isdigit():
             paquets[os.path.basename(d)] = {"e": int(e), "max": int(m)}
@@ -123,22 +123,22 @@ def lire_rapl():
 
 
 def lire_cpu_total():
-    """Temps processeur occupe de toute la machine, en microsecondes."""
+    """Busy CPU time of the whole machine, in microseconds."""
     with open(PROC_STAT) as f:
         v = [int(x) for x in f.readline().split()[1:]]
-    occupe = sum(v[:8]) - v[3] - v[4]     # tout sauf inactif et attente disque (sans invite/guest)
+    occupe = sum(v[:8]) - v[3] - v[4]     # everything except idle and iowait (guest excluded)
     return occupe * 1e6 / os.sysconf("SC_CLK_TCK")
 
 
 def lire_conteneurs():
-    """{id: {nom, memoire_mo, usage_us ou None si arrete}} depuis la configuration Proxmox."""
+    """{id: {nom, memoire_mo, usage_us or None if stopped}} from the Proxmox configuration."""
     res = {}
     for conf in glob.glob(os.path.join(PVE_LXC, "*.conf")):
         ident = os.path.basename(conf)[:-5]
         nom, memoire = "CT " + ident, 512
         for ligne in (lire(conf, "") or "").splitlines():
             if ligne.startswith("["):
-                break                      # sections d'instantanes : on s'arrete
+                break                      # snapshot sections: stop here
             if ligne.startswith("hostname:"):
                 nom = ligne.split(":", 1)[1].strip()
             elif ligne.startswith("memory:"):
@@ -151,19 +151,19 @@ def lire_conteneurs():
     return res
 
 
-# ---------- Imputation d'un intervalle ----------
+# ---------- Allocation of one interval ----------
 
 def imputer(conf, etat, prec, mes, dt, maintenant):
     rend = float(conf.get("rendement_alimentation", 0.85))
     autres = float(conf.get("autres_composants_w", 14))
 
-    # Puissance du processeur : mesuree (RAPL) ou estimee d'apres la charge
+    # CPU power: measured (RAPL) or estimated from the load
     if mes["rapl"] and prec.get("rapl") and set(mes["rapl"]) == set(prec["rapl"]):
         joules = 0.0
         for k, v in mes["rapl"].items():
             d = v["e"] - prec["rapl"][k]["e"]
             if d < 0:
-                d += v["max"]              # le compteur a fait le tour
+                d += v["max"]              # the counter wrapped around
             joules += d / 1e6
         p_proc, source = joules / dt, "mesure RAPL"
     else:
@@ -172,24 +172,24 @@ def imputer(conf, etat, prec, mes, dt, maintenant):
         charge = min(max((mes["cpu_us"] - prec["cpu_us"]) / (dt * 1e6 * nb), 0), 1)
         p_proc, source = est["repos_w"] + (est["max_w"] - est["repos_w"]) * charge, "estimation (pas de RAPL)"
 
-    # Puissance de repos du processeur = plus petite minute des 7 derniers jours
+    # CPU idle power = lowest minute of the last 7 days
     jour = datetime.date.fromtimestamp(maintenant).isoformat()
     minima = etat.setdefault("minima", {})
-    if p_proc >= 0.5:                      # une valeur quasi nulle serait une mesure aberrante
+    if p_proc >= 0.5:                      # a near-zero value would be a bogus reading
         minima[jour] = round(min(minima.get(jour, p_proc), p_proc), 3)
     for j in sorted(minima)[:-7]:
         del minima[j]
     repos = min(minima.values()) if minima else p_proc
 
-    # Energie a la prise, decoupee en variable et fixe (kWh)
+    # Energy at the wall, split into variable and fixed (kWh)
     kwh_var = max(p_proc - repos, 0) * dt / rend / 3.6e6
     kwh_fixe = (repos + autres) * dt / rend / 3.6e6
 
-    # Cle variable : temps processeur de chaque conteneur ; le reste revient a l'hote
+    # Variable key: CPU time of each container; the rest goes to the host
     cpu, ram = {}, {}
     for ident, c in mes["conteneurs"].items():
         if c["usage_us"] is None:
-            continue                       # conteneur arrete : il ne consomme rien
+            continue                       # stopped container: it consumes nothing
         ram[c["nom"]] = c["memoire_mo"]
         avant = prec.get("conteneurs", {}).get(ident, {}).get("usage_us")
         cpu[c["nom"]] = max(c["usage_us"] - avant, 0) if avant is not None else 0
@@ -212,7 +212,7 @@ def imputer(conf, etat, prec, mes, dt, maintenant):
             "source": source, "services_w": instant, "horodatage": maintenant}
 
 
-# ---------- Synthese pour le tableau de bord ----------
+# ---------- Summary for the dashboard ----------
 
 def synthese(conf, etat, instant, maintenant):
     prix = float(conf["prix_kwh_eur"])
@@ -225,7 +225,7 @@ def synthese(conf, etat, instant, maintenant):
         sec = sum(jours[k]["secondes"] for k in js)
         return kwh, sec
 
-    # Mois en cours et projection a la fin du mois
+    # Current month and projection to the end of the month
     mois = [k for k in cles if k.startswith(auj.strftime("%Y-%m"))]
     kwh_mois, sec_mois = total(mois)
     debut = auj.replace(day=1)
@@ -233,10 +233,10 @@ def synthese(conf, etat, instant, maintenant):
     sec_dans_mois = (fin - debut).days * 86400
     proj_mois = kwh_mois / sec_mois * sec_dans_mois * prix if sec_mois > 3600 else None
 
-    # 30 derniers jours glissants
+    # Rolling last 30 days
     j30 = [k for k in cles if k > (auj - datetime.timedelta(days=30)).isoformat()]
     kwh30, sec30 = total(j30)
-    p_moy = kwh30 * 3.6e6 / sec30 if sec30 > 0 else None          # watts moyens a la prise
+    p_moy = kwh30 * 3.6e6 / sec30 if sec30 > 0 else None          # average watts at the wall
 
     services = {}
     for k in j30:
@@ -258,7 +258,7 @@ def synthese(conf, etat, instant, maintenant):
                            "heures": round(jj["secondes"] / 3600, 1) if jj else 0,
                            "services": {n: round((v + f) * prix, 4) for n, (v, f) in jj["services"].items()} if jj else {}})
 
-    # Cout total de possession (TCO) mensuel : electricite + amortissement du materiel + domaine
+    # Monthly total cost of ownership (TCO): electricity + hardware depreciation + domain
     elec_mois = p_moy * 730 / 1000 * prix if p_moy else None
     materiel = conf.get("materiel", [])
     duree = int(conf.get("amortissement_mois", 36))
@@ -299,7 +299,7 @@ def synthese(conf, etat, instant, maintenant):
 def main():
     conf = lire_json(CONF, None)
     if not conf:
-        raise SystemExit(f"Configuration absente ou illisible : {CONF}")
+        raise SystemExit(f"Configuration missing or unreadable: {CONF}")
     maintenant = MAINTENANT or time.time()
     etat = lire_json(ETAT, {})
     mes = {"t": maintenant, "rapl": lire_rapl(), "cpu_us": lire_cpu_total(), "conteneurs": lire_conteneurs()}
@@ -307,7 +307,7 @@ def main():
     instant = etat.get("instant")
     if prec and 0 < maintenant - prec["t"] <= 600:
         instant = imputer(conf, etat, prec, mes, maintenant - prec["t"], maintenant)
-    # sinon (premier passage, redemarrage, longue coupure) : on repart de cette mesure sans rien imputer
+    # otherwise (first run, reboot, long outage): restart from this reading without allocating anything
     etat["derniere"], etat["instant"] = mes, instant
     jours = etat.get("jours", {})
     for k in sorted(jours)[:-JOURS_GARDES]:
@@ -322,11 +322,11 @@ if __name__ == "__main__":
 FIN_RELEVE
 cat > /usr/local/sbin/finops-azure.py <<'FIN_AZURE'
 #!/usr/bin/env python3
-"""Home Cloud - prix Azure equivalents (lance chaque semaine).
+"""Home Cloud - equivalent Azure prices (run every week).
 
-Interroge l'API publique des prix de detail Azure (https://prices.azure.com, sans compte ni cle)
-pour la machine virtuelle et le disque qui remplaceraient le serveur maison, en euros,
-tarif a l'usage (pay-as-you-go), Linux, region configuree.
+Queries the public Azure retail prices API (https://prices.azure.com, no account or key needed)
+for the virtual machine and disk that would replace the home server, in euros,
+pay-as-you-go rate, Linux, configured region.
 """
 import datetime
 import json
@@ -337,12 +337,12 @@ import urllib.request
 CONF = os.environ.get("FINOPS_CONF", "/etc/homecloud/finops.json")
 SORTIE = os.path.join(os.environ.get("ETAT_DIR", "/var/lib/homecloud"), "azure-prix.json")
 API = "https://prices.azure.com/api/retail/prices"
-HEURES_PAR_MOIS = 730     # convention Azure pour passer d'un prix horaire a un prix mensuel
+HEURES_PAR_MOIS = 730     # Azure convention to turn an hourly price into a monthly price
 
 
 def requete(filtre):
     url = API + "?" + urllib.parse.urlencode({"currencyCode": "'EUR'", "$filter": filtre},
-                                             safe="$'", quote_via=urllib.parse.quote)   # espaces en %20
+                                             safe="$'", quote_via=urllib.parse.quote)   # spaces as %20
     articles = []
     while url and len(articles) < 2000:
         with urllib.request.urlopen(url, timeout=30) as r:
@@ -388,7 +388,7 @@ def main():
         res["disque"] = prix_disque(az["region"], az["disque"])
         res["disque"]["libelle_court"] = az.get("disque_libelle", az["disque"])
         res["ok"] = True
-    except Exception as e:                      # on garde les anciens prix s'ils existent
+    except Exception as e:                      # keep the old prices if they exist
         try:
             with open(SORTIE) as f:
                 ancien = json.load(f)
@@ -702,10 +702,10 @@ chmod 644 /opt/supervision/web/finops.html
 echo "OK"
 
 echo
-echo "=== 3. Minuteurs ==="
+echo "=== 3. Timers ==="
 cat > /etc/systemd/system/finops-releve.service <<'FIN_UNITE'
 [Unit]
-Description=Home Cloud - releve FinOps (energie et imputation par service)
+Description=Home Cloud - FinOps reading (energy and allocation per service)
 
 [Service]
 Type=oneshot
@@ -714,7 +714,7 @@ Nice=10
 FIN_UNITE
 cat > /etc/systemd/system/finops-releve.timer <<'FIN_UNITE'
 [Unit]
-Description=Releve FinOps chaque minute
+Description=FinOps reading every minute
 
 [Timer]
 OnBootSec=1min
@@ -726,7 +726,7 @@ WantedBy=timers.target
 FIN_UNITE
 cat > /etc/systemd/system/finops-azure.service <<'FIN_UNITE'
 [Unit]
-Description=Home Cloud - prix Azure equivalents (API publique prices.azure.com)
+Description=Home Cloud - equivalent Azure prices (public API prices.azure.com)
 Wants=network-online.target
 After=network-online.target
 
@@ -736,7 +736,7 @@ ExecStart=/usr/bin/python3 /usr/local/sbin/finops-azure.py
 FIN_UNITE
 cat > /etc/systemd/system/finops-azure.timer <<'FIN_UNITE'
 [Unit]
-Description=Prix Azure chaque semaine
+Description=Azure prices every week
 
 [Timer]
 OnCalendar=Mon 06:00
@@ -749,20 +749,20 @@ systemctl daemon-reload
 systemctl enable --now finops-releve.timer finops-azure.timer
 
 echo
-echo "=== 4. Prix Azure (premier releve) ==="
+echo "=== 4. Azure prices (first reading) ==="
 systemctl start finops-azure.service || true
 python3 - <<'FIN_TEST'
 import json
 a = json.load(open("/var/lib/homecloud/azure-prix.json"))
 if a.get("ok"):
-    print(f"VM {a['vm']['sku']} : {a['vm']['prix_heure']} EUR/h -> {a['vm']['mois']} EUR/mois")
-    print(f"Disque {a['disque']['sku']} : {a['disque']['mois']} EUR/mois")
+    print(f"VM {a['vm']['sku']}: {a['vm']['prix_heure']} EUR/h -> {a['vm']['mois']} EUR/month")
+    print(f"Disk {a['disque']['sku']}: {a['disque']['mois']} EUR/month")
 else:
-    print("Prix Azure indisponibles :", a.get("erreur"))
+    print("Azure prices unavailable:", a.get("erreur"))
 FIN_TEST
 
 echo
-echo "=== 5. Branchement du collecteur et de l'ecran ==="
+echo "=== 5. Hooking up the collector and the screen ==="
 cp -a /opt/supervision/collecteur.py /opt/supervision/collecteur.py.avant-finops
 cp -a /opt/supervision/web/index.html /opt/supervision/web/index.html.avant-finops
 python3 - <<'FIN_CORRECTIF'
@@ -773,17 +773,17 @@ PAGE = os.environ.get("PAGE_WEB", "/opt/supervision/web/index.html")
 
 def remplacer(texte, avant, apres, nom):
     if texte.count(avant) != 1:
-        sys.exit(f"ERREUR : repere introuvable dans {nom}, rien n'a ete modifie.")
+        sys.exit(f"ERROR: anchor not found ({nom}), nothing was modified.")
     return texte.replace(avant, apres)
 
 
 c = open(COLL).read()
 p = open(PAGE).read()
 if "lire_finops" in c:
-    print("Collecteur deja branche sur le FinOps, rien a faire.")
+    print("Collector already hooked up to FinOps, nothing to do.")
     sys.exit(0)
 
-# 1. Lecture de la synthese FinOps (toutes les 15 s, avec les autres mesures lentes)
+# 1. Read the FinOps summary (every 15 s, along with the other slow measurements)
 c = remplacer(c, "def boucle_lente():", '''def lire_finops():
     try:
         with open(os.path.join(ETAT_DIR, "finops.json")) as f:
@@ -795,7 +795,7 @@ c = remplacer(c, "def boucle_lente():", '''def lire_finops():
 def boucle_lente():''', "le collecteur")
 c = remplacer(c, "sauvegardes=lire_sauvegardes())", "sauvegardes=lire_sauvegardes(), finops=lire_finops())", "le collecteur")
 
-# 2. Nouvelle page /finops servie a cote de l'ecran principal
+# 2. New /finops page served next to the main screen
 c = remplacer(c, '''        elif self.path in ("/", "/index.html"):''', '''        elif self.path in ("/finops", "/finops.html"):
             try:
                 with open(os.path.join(os.path.dirname(PAGE), "finops.html"), "rb") as f:
@@ -805,7 +805,7 @@ c = remplacer(c, '''        elif self.path in ("/", "/index.html"):''', '''     
             typ = "text/html; charset=utf-8"
         elif self.path in ("/", "/index.html"):''', "le collecteur")
 
-# 3. Ecran principal : puissance et cout du mois dans la ligne d'en-tete
+# 3. Main screen: power and cost of the month in the header line
 p = remplacer(p, '''" · en service depuis " + depuis(e.uptime || 0);''',
               '''" · en service depuis " + depuis(e.uptime || 0)
     + (e.finops && e.finops.instant ? " · " + fr(e.finops.instant.p_mur) + " W · " + fr(e.finops.mois.eur, 2) + " € ce mois-ci" : "");''',
@@ -813,22 +813,22 @@ p = remplacer(p, '''" · en service depuis " + depuis(e.uptime || 0);''',
 
 open(COLL, "w").write(c)
 open(PAGE, "w").write(p)
-print("Collecteur et ecran principal branches sur le FinOps.")
+print("Collector and main screen hooked up to FinOps.")
 FIN_CORRECTIF
-python3 -m py_compile /opt/supervision/collecteur.py && echo "Collecteur : syntaxe OK"
+python3 -m py_compile /opt/supervision/collecteur.py && echo "Collector: syntax OK"
 systemctl restart supervision.service
 systemctl restart ecran-supervision.service
 
 echo
-echo "=== 6. Premieres mesures (2 minutes) ==="
+echo "=== 6. First measurements (2 minutes) ==="
 sleep 125
 python3 - <<'FIN_TEST'
 import json
 f = json.load(open("/var/lib/homecloud/finops.json"))
 i = f.get("instant") or {}
-print(f"Processeur : {i.get('p_proc')} W ({i.get('source')}) | a la prise (estime) : {i.get('p_mur')} W")
+print(f"CPU: {i.get('p_proc')} W ({i.get('source')}) | at the wall (estimated): {i.get('p_mur')} W")
 for nom, w in sorted((i.get("services_w") or {}).items(), key=lambda x: -x[1]):
     print(f"  {nom:<16} {w:>6} W")
 FIN_TEST
 echo
-echo "TERMINE. Page : https://tableau.maison.exemple.fr/finops"
+echo "DONE. Page: https://tableau.maison.example.com/finops"

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Home Cloud - prix Azure equivalents (lance chaque semaine).
+"""Home Cloud - equivalent Azure prices (run every week).
 
-Interroge l'API publique des prix de detail Azure (https://prices.azure.com, sans compte ni cle)
-pour la machine virtuelle et le disque qui remplaceraient le serveur maison, en euros,
-tarif a l'usage (pay-as-you-go), Linux, region configuree.
+Queries the public Azure retail prices API (https://prices.azure.com, no account or key needed)
+for the virtual machine and disk that would replace the home server, in euros,
+pay-as-you-go rate, Linux, configured region.
 """
 import datetime
 import json
@@ -14,12 +14,12 @@ import urllib.request
 CONF = os.environ.get("FINOPS_CONF", "/etc/homecloud/finops.json")
 SORTIE = os.path.join(os.environ.get("ETAT_DIR", "/var/lib/homecloud"), "azure-prix.json")
 API = "https://prices.azure.com/api/retail/prices"
-HEURES_PAR_MOIS = 730     # convention Azure pour passer d'un prix horaire a un prix mensuel
+HEURES_PAR_MOIS = 730     # Azure convention to turn an hourly price into a monthly price
 
 
 def requete(filtre):
     url = API + "?" + urllib.parse.urlencode({"currencyCode": "'EUR'", "$filter": filtre},
-                                             safe="$'", quote_via=urllib.parse.quote)   # espaces en %20
+                                             safe="$'", quote_via=urllib.parse.quote)   # spaces as %20
     articles = []
     while url and len(articles) < 2000:
         with urllib.request.urlopen(url, timeout=30) as r:
@@ -65,7 +65,7 @@ def main():
         res["disque"] = prix_disque(az["region"], az["disque"])
         res["disque"]["libelle_court"] = az.get("disque_libelle", az["disque"])
         res["ok"] = True
-    except Exception as e:                      # on garde les anciens prix s'ils existent
+    except Exception as e:                      # keep the old prices if they exist
         try:
             with open(SORTIE) as f:
                 ancien = json.load(f)

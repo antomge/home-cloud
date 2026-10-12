@@ -1,5 +1,5 @@
 [Unit]
-Description=Home Cloud - collecteur de l'ecran de supervision
+Description=Home Cloud - monitoring screen collector
 After=network-online.target pve-cluster.service
 Wants=network-online.target
 

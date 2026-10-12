@@ -1,81 +1,81 @@
-# 11. FinOps — mesurer, imputer, comparer
+# 11. FinOps — measure, allocate, compare
 
-Script : `scripts/11-installer-finops.sh` (+ `12-ajout-bascule.sh` pour le bouton de l'écran)
-Code : `services/finops-releve.py`, `services/finops-azure.py`, `supervision/finops.html` · Hypothèses : `configs/finops.json`
+Script: `scripts/11-install-finops.sh` (+ `12-add-dashboard-toggle.sh` for the screen button)
+Code: `services/finops-releve.py`, `services/finops-azure.py`, `supervision/finops.html` · Assumptions: `configs/finops.json`
 
-La démarche FinOps tient en trois mots : **informer** (savoir ce que l'on dépense), **optimiser**, **opérer**. Cette page couvre surtout le premier : rendre le coût visible, par service, avec une méthode explicite.
+The FinOps approach comes down to three words: **inform** (know what you spend), **optimize**, **operate**. This page mainly covers the first one: making cost visible, per service, with an explicit method.
 
-## 1. Mesurer la consommation
+## 1. Measuring consumption
 
-Chaque minute, `finops-releve.py` lit les **compteurs d'énergie du processeur** (Intel RAPL, `/sys/class/powercap/intel-rapl:0/energy_uj`), en gérant le retour à zéro du compteur. La puissance à la prise est ensuite estimée :
+Every minute, `finops-releve.py` reads the **CPU energy counters** (Intel RAPL, `/sys/class/powercap/intel-rapl:0/energy_uj`), handling counter wrap-around. Power at the wall is then estimated:
 
 ```
-P_prise = (P_processeur mesurée + 14 W autres composants) / 0,85 (rendement de l'alimentation)
+P_wall = (measured P_cpu + 14 W other components) / 0.85 (power supply efficiency)
 ```
 
-Les 14 W (deux disques durs, SSD, carte mère, mémoire, ventilateurs) sont une **estimation**, écrite noir sur blanc dans les hypothèses et à confronter un jour à une prise wattmètre. Si RAPL n'est pas disponible, la puissance du processeur est estimée d'après sa charge, et la page l'indique.
+The 14 W (two hard drives, SSD, motherboard, memory, fans) is an **estimate**, written down explicitly in the assumptions and to be checked one day against a plug-in power meter. If RAPL is not available, CPU power is estimated from its load, and the page says so.
 
-## 2. Imputer le coût aux services (showback)
+## 2. Allocating cost to services (showback)
 
-Chaque minute d'énergie est découpée en deux parts, chacune avec sa **clé de répartition** :
+Each minute of energy is split into two shares, each with its own **allocation key**:
 
-| Part | Contenu | Clé de répartition | Analogie cloud |
+| Share | Contents | Allocation key | Cloud analogy |
 |---|---|---|---|
-| **Variable** | Processeur au-dessus de sa puissance de repos | Temps processeur réellement consommé par chaque conteneur (`/sys/fs/cgroup/lxc/<id>/cpu.stat`), le reste revenant à l'hôte | Facturation à l'usage |
-| **Fixe** | Repos du processeur, disques, carte mère | Mémoire réservée par chaque conteneur (l'hôte Proxmox compte pour 2 Go) | Capacité réservée, payée même inutilisée |
+| **Variable** | CPU power above its idle level | CPU time actually used by each container (`/sys/fs/cgroup/lxc/<id>/cpu.stat`), with the remainder going to the host | Pay-as-you-go billing |
+| **Fixed** | CPU idle power, disks, motherboard | Memory reserved by each container (the Proxmox host counts as 2 GB) | Reserved capacity, paid for even when unused |
 
-La puissance de repos est la plus petite minute mesurée sur les 7 derniers jours : le partage s'affine avec le temps.
+Idle power is the lowest one-minute measurement over the last 7 days: the split becomes more accurate over time.
 
-**Limite connue :** le transcodage de Jellyfin passe par la puce graphique, dont l'énergie est dans le compteur du processeur ; la clé « temps processeur » le sous-estime un peu.
+**Known limitation:** Jellyfin transcoding runs on the integrated GPU, whose energy is included in the CPU counter; the "CPU time" key slightly underestimates it.
 
-## 3. Le prix
+## 3. The price
 
-- **0,2001 €/kWh** : Tarif Bleu EDF option Base (6 kVA), en vigueur depuis le 1ᵉʳ août 2026.
-- **L'abonnement n'est pas imputé** : il serait payé même sans serveur. On ne facture à un service que ce qu'il fait réellement varier (coût marginal).
+- **0.2001 €/kWh**: EDF Tarif Bleu, Base option (6 kVA), in effect since August 1, 2026.
+- **The fixed subscription fee is not allocated**: it would be paid even without the server. A service is only charged for what it actually causes to vary (marginal cost).
 
-## 4. Coût total de possession
+## 4. Total cost of ownership
 
-| Poste | Traitement |
+| Item | Treatment |
 |---|---|
-| Électricité | Puissance moyenne mesurée × 730 h × prix du kWh |
-| Matériel acheté pour le projet (343,96 €) | Amorti sur 36 mois → 9,55 €/mois |
-| Pièces déjà possédées (boîtier, carte mère, mémoire, SSD, Barracuda) | **Coûts irrécupérables** : hors calcul |
-| Nom de domaine | Prix annuel ÷ 12, à renseigner dans `configs/finops.json` |
+| Electricity | Average measured power × 730 h × price per kWh |
+| Hardware bought for the project (343.96 €) | Amortized over 36 months → 9.55 €/month |
+| Parts already owned (case, motherboard, memory, SSD, Barracuda) | **Sunk costs**: excluded from the calculation |
+| Domain name | Annual price ÷ 12, to be entered in `configs/finops.json` |
 
-## 5. Comparaison avec Azure
+## 5. Comparison with Azure
 
-`finops-azure.py` interroge chaque lundi l'**API publique des prix de détail Azure** (`prices.azure.com`, sans compte ni clé) :
+Every Monday, `finops-azure.py` queries the **public Azure Retail Prices API** (`prices.azure.com`, no account or key needed):
 
-- VM **Standard_B4ms** (4 vCPU, 16 Go), Linux, tarif à l'usage, France Centre ;
-- disque **HDD standard S50** (4 To).
+- **Standard_B4ms** VM (4 vCPUs, 16 GB), Linux, pay-as-you-go, France Central;
+- **Standard HDD S50** disk (4 TB).
 
-Les filtres excluent les prix Windows, Spot et « basse priorité ». En cas d'échec, les derniers prix connus sont conservés avec un avertissement.
+The filters exclude Windows, Spot and "low priority" prices. If the query fails, the last known prices are kept, with a warning.
 
-### Résultat (octobre 2026)
+### Result (October 2026)
 
-| | Par mois |
+| | Per month |
 |---|---|
-| Home Cloud : électricité (≈ 22 W à la prise) | ≈ 3,2 € |
-| Home Cloud : matériel amorti | 9,55 € |
-| **Home Cloud : total** | **≈ 13 €** |
-| Azure : VM B4ms | 121,40 € |
-| Azure : disque S50 | 138,75 € |
-| **Azure : total** | **≈ 260 €** |
+| Home Cloud: electricity (≈ 22 W at the wall) | ≈ 3.2 € |
+| Home Cloud: amortized hardware | 9.55 € |
+| **Home Cloud: total** | **≈ 13 €** |
+| Azure: B4ms VM | 121.40 € |
+| Azure: S50 disk | 138.75 € |
+| **Azure: total** | **≈ 260 €** |
 
-### Lecture critique
+### Critical reading
 
-- La comparaison **avantage Azure** : ni la sortie de données (streaming), ni les sauvegardes, ni l'équivalent du transcodage matériel ne sont comptés.
-- Elle avantage aussi le serveur maison : ni haute disponibilité, ni copie hors site, ni temps passé à l'administrer.
-- Les leviers d'optimisation sur Azure seraient : **réservation** sur 1 ou 3 ans, stockage **Blob froid** pour les photos au lieu d'un disque provisionné, **arrêt de la VM** la nuit, et redimensionnement d'après la charge mesurée.
+- The comparison **favors Azure**: data egress (streaming), backups and an equivalent of hardware transcoding are not counted.
+- It also favors the home server: no high availability, no off-site copy, and no time spent administering it.
+- The optimization levers on Azure would be: a 1- or 3-year **reservation**, **cool Blob** storage for the photos instead of a provisioned disk, **shutting the VM down** at night, and rightsizing based on the measured load.
 
-## La page
+## The page
 
-`https://tableau.maison.<domaine>/finops`, accessible aussi depuis l'écran du serveur par le bouton **COÛTS** :
+`https://tableau.maison.<domain>/finops`, also reachable from the server screen via the **COÛTS** ("costs") button:
 
-- puissance actuelle, coût du jour, du mois (avec projection) et de l'année ;
-- coût par jour sur 30 jours, empilé par service, avec infobulles ;
-- tableau d'imputation par service (puissance actuelle, énergie, coût, part, part variable) ;
-- coût total de possession face à l'équivalent Azure ;
-- méthode et hypothèses, affichées en toutes lettres.
+- current power draw, cost for the day, the month (with projection) and the year;
+- daily cost over 30 days, stacked by service, with tooltips;
+- cost allocation table per service (current power, energy, cost, share, variable share);
+- total cost of ownership versus the Azure equivalent;
+- method and assumptions, spelled out in full.
 
-Les couleurs des services viennent d'une palette catégorielle validée pour le daltonisme et le contraste sur fond sombre ; chaque couleur est doublée d'un libellé.
+Service colors come from a categorical palette validated for color blindness and for contrast on a dark background; every color is paired with a text label.

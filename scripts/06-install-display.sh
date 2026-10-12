@@ -1,25 +1,25 @@
 #!/bin/bash
-# Home Cloud - affichage de l'ecran de supervision sur la sortie HDMI
-# cage (compositeur kiosque Wayland) + chromium en plein ecran, compte "kiosque" sans droits
+# Home Cloud - shows the monitoring screen on the HDMI output
+# cage (Wayland kiosk compositor) + full-screen chromium, unprivileged "kiosque" account
 set -euo pipefail
 
-if [ "$(id -u)" -ne 0 ]; then echo "ERREUR : a lancer en root."; exit 1; fi
-if ! systemctl is-active --quiet supervision; then echo "ERREUR : le collecteur (supervision) ne tourne pas."; exit 1; fi
+if [ "$(id -u)" -ne 0 ]; then echo "ERROR: must be run as root."; exit 1; fi
+if ! systemctl is-active --quiet supervision; then echo "ERROR: the collector (supervision) is not running."; exit 1; fi
 
-echo "=== 1. Installation de cage et chromium (sans paquets superflus) ==="
+echo "=== 1. Installing cage and chromium (no unnecessary packages) ==="
 apt-get update -q
 DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends \
   cage chromium fonts-dejavu-core fonts-noto-core dbus-user-session
 
 echo
-echo "=== 2. Compte dedie 'kiosque' (aucun mot de passe, aucun droit admin) ==="
+echo "=== 2. Dedicated 'kiosque' account (no password, no admin rights) ==="
 id kiosque >/dev/null 2>&1 || useradd --create-home --shell /usr/sbin/nologin kiosque
 usermod -aG video,render,input kiosque
 passwd -l kiosque >/dev/null
 id kiosque
 
 echo
-echo "=== 3. Session PAM pour cage ==="
+echo "=== 3. PAM session for cage ==="
 cat > /etc/pam.d/cage <<'FIN_PAM'
 auth    required pam_unix.so nullok
 account required pam_unix.so
@@ -28,10 +28,10 @@ session required pam_systemd.so
 FIN_PAM
 
 echo
-echo "=== 4. Service d'affichage sur tty1 ==="
+echo "=== 4. Display service on tty1 ==="
 cat > /etc/systemd/system/ecran-supervision.service <<'FIN_UNITE'
 [Unit]
-Description=Home Cloud - ecran de supervision (cage + chromium) sur tty1
+Description=Home Cloud - monitoring screen (cage + chromium) on tty1
 After=systemd-user-sessions.service supervision.service getty@tty1.service
 Wants=supervision.service
 Conflicts=getty@tty1.service
@@ -63,10 +63,10 @@ systemctl enable ecran-supervision.service
 systemctl restart ecran-supervision.service
 
 echo
-echo "=== 5. Verification (15 secondes) ==="
+echo "=== 5. Check (15 seconds) ==="
 sleep 15
-echo -n "Affichage : "; systemctl is-active ecran-supervision || true
+echo -n "Display: "; systemctl is-active ecran-supervision || true
 journalctl -u ecran-supervision -n 15 --no-pager | cut -c1-200
 echo
-echo "TERMINE. Regarde l'ecran branche sur le serveur !"
-echo "Pour revenir a la console texte : systemctl stop ecran-supervision"
+echo "DONE. Look at the screen plugged into the server!"
+echo "To go back to the text console: systemctl stop ecran-supervision"

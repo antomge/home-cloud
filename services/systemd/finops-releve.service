@@ -1,5 +1,5 @@
 [Unit]
-Description=Home Cloud - releve FinOps (energie et imputation par service)
+Description=Home Cloud - FinOps reading (energy and allocation per service)
 
 [Service]
 Type=oneshot

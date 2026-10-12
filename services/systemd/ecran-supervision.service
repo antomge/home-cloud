@@ -1,5 +1,5 @@
 [Unit]
-Description=Home Cloud - ecran de supervision (cage + chromium) sur tty1
+Description=Home Cloud - monitoring screen (cage + chromium) on tty1
 After=systemd-user-sessions.service supervision.service getty@tty1.service
 Wants=supervision.service
 Conflicts=getty@tty1.service

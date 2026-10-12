@@ -1,26 +1,26 @@
 #!/bin/bash
-# Home Cloud - tri automatique des photos (annee / mois) toutes les 5 minutes
+# Home Cloud - automatic photo sorting (year / month) every 5 minutes
 set -euo pipefail
-if [ "$(id -u)" -ne 0 ]; then echo "ERREUR : a lancer en root."; exit 1; fi
-if ! mountpoint -q /mnt/wd; then echo "ERREUR : le WD n'est pas monte."; exit 1; fi
+if [ "$(id -u)" -ne 0 ]; then echo "ERROR: must be run as root."; exit 1; fi
+if ! mountpoint -q /mnt/wd; then echo "ERROR: the WD disk is not mounted."; exit 1; fi
 
-echo "=== 1. Installation d'exiftool (lecture des metadonnees des photos) ==="
+echo "=== 1. Installing exiftool (reads photo metadata) ==="
 apt-get update -q
 DEBIAN_FRONTEND=noninteractive apt-get install -y -q libimage-exiftool-perl
 exiftool -ver
 
 echo
-echo "=== 2. Script de tri ==="
+echo "=== 2. Sorting script ==="
 cat > /usr/local/sbin/tri-photos.py <<'FIN_TRI'
 #!/usr/bin/env python3
-"""Home Cloud - tri automatique des photos par annee puis par mois.
+"""Home Cloud - automatic photo sorting by year, then by month.
 
-Les photos et videos deposees A LA RACINE du dossier photos sont rangees dans
-  photos/AAAA/MM - Mois/
-d'apres leur date de prise de vue (metadonnees EXIF), sinon d'apres leur nom,
-sinon d'apres leur date de modification. Les sous-dossiers existants ne sont
-jamais touches. Rien n'est jamais supprime : un doublon exact part dans
-photos/_doublons/, un homonyme different recoit un suffixe " (1)".
+Photos and videos dropped AT THE ROOT of the photos folder are moved into
+  photos/YYYY/MM - Month/
+based on their capture date (EXIF metadata), otherwise on their file name,
+otherwise on their modification date. Existing subfolders are never
+touched. Nothing is ever deleted: an exact duplicate goes to
+photos/_doublons/, a different file with the same name gets a " (1)" suffix.
 """
 import datetime
 import fcntl
@@ -37,14 +37,14 @@ RACINE = os.environ.get("RACINE_PHOTOS", "/mnt/wd/photos")
 EXIFTOOL = os.environ.get("EXIFTOOL", "exiftool")
 JOURNAL = os.environ.get("JOURNAL_TRI", "/var/log/tri-photos.log")
 STATUT = os.environ.get("STATUT_TRI", "/var/lib/homecloud/tri-photos.statut")
-PROPRIETAIRE = (101000, 101000)   # anto dans le conteneur "partage"
-DELAI_STABLE = 120                # secondes sans modification avant de trier (envoi termine)
+PROPRIETAIRE = (101000, 101000)   # anto inside the "partage" container
+DELAI_STABLE = 120                # seconds without modification before sorting (upload finished)
 EXTENSIONS = {".jpg", ".jpeg", ".heic", ".heif", ".png", ".gif", ".webp", ".tif", ".tiff",
               ".dng", ".cr2", ".cr3", ".nef", ".arw", ".raf", ".orf", ".rw2",
               ".mov", ".mp4", ".m4v", ".avi", ".3gp", ".mts"}
 MOIS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août",
         "Septembre", "Octobre", "Novembre", "Décembre"]
-# Balises de date, de la plus fiable a la moins fiable
+# Date tags, from most to least reliable
 BALISES = ["DateTimeOriginal", "CreationDate", "SubSecDateTimeOriginal", "CreateDate",
            "MediaCreateDate", "DateCreated"]
 MOTIF_NOM = re.compile(r"(?<!\d)(20\d{2}|19\d{2})[-_.]?(0[1-9]|1[0-2])[-_.]?(0[1-9]|[12]\d|3[01])(?!\d)")
@@ -61,7 +61,7 @@ def journal(message):
 
 
 def lire_dates_exif(fichiers):
-    """Interroge exiftool une seule fois pour tous les fichiers (bien plus rapide)."""
+    """Queries exiftool only once for all files (much faster)."""
     if not fichiers:
         return {}
     cmd = [EXIFTOOL, "-json", "-api", "QuickTimeUTC", "-d", "%Y-%m-%d %H:%M:%S"]
@@ -85,7 +85,7 @@ def lire_dates_exif(fichiers):
 def date_depuis_nom(nom):
     m = MOTIF_NOM.search(nom)
     if m:
-        return int(m.group(1)), int(m.group(2)), "nom du fichier"
+        return int(m.group(1)), int(m.group(2)), "file name"
     return None
 
 
@@ -100,7 +100,7 @@ def empreinte(chemin):
 def creer_dossier(chemin):
     if not os.path.isdir(chemin):
         os.makedirs(chemin, exist_ok=True)
-        # chaque niveau cree doit appartenir a anto pour qu'il puisse y ecrire depuis le partage
+        # every level created must belong to anto so he can write to it from the share
         partie = chemin
         while partie != RACINE and partie.startswith(RACINE):
             os.chown(partie, *PROPRIETAIRE)
@@ -109,7 +109,7 @@ def creer_dossier(chemin):
 
 
 def destination_libre(dossier, nom, source):
-    """Renvoie (chemin_destination, est_un_doublon)."""
+    """Returns (destination_path, is_a_duplicate)."""
     cible = os.path.join(dossier, nom)
     if not os.path.exists(cible):
         return cible, False
@@ -124,13 +124,13 @@ def destination_libre(dossier, nom, source):
 
 def main():
     if not os.path.isdir(RACINE):
-        journal(f"ERREUR : dossier {RACINE} introuvable")
+        journal(f"ERROR: folder {RACINE} not found")
         return 1
     verrou = open("/tmp/tri-photos.lock", "w")
     try:
         fcntl.flock(verrou, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
-        return 0  # un tri est deja en cours
+        return 0  # a sort is already running
 
     maintenant = time.time()
     candidats = []
@@ -141,7 +141,7 @@ def main():
         if os.path.splitext(nom)[1].lower() not in EXTENSIONS:
             continue
         if maintenant - os.path.getmtime(chemin) < DELAI_STABLE:
-            continue  # encore en cours d'envoi, on attend le prochain passage
+            continue  # still uploading, wait for the next run
         candidats.append(chemin)
 
     if not candidats:
@@ -154,7 +154,7 @@ def main():
         info = dates.get(chemin) or date_depuis_nom(nom)
         if not info:
             mt = datetime.datetime.fromtimestamp(os.path.getmtime(chemin))
-            info = (mt.year, mt.month, "date de modification")
+            info = (mt.year, mt.month, "modification date")
         annee, mois, origine = info
         dossier = os.path.join(RACINE, f"{annee:04d}", f"{mois:02d} - {MOIS[mois - 1]}")
         creer_dossier(dossier)
@@ -163,17 +163,17 @@ def main():
             dossier_doublons = os.path.join(RACINE, "_doublons")
             creer_dossier(dossier_doublons)
             cible, _ = destination_libre(dossier_doublons, nom, chemin)
-            if cible is None:  # deja present aussi dans _doublons
+            if cible is None:  # already present in _doublons too
                 cible = os.path.join(dossier_doublons, f"{time.time_ns()}_{nom}")
             shutil.move(chemin, cible)
             doublons += 1
-            journal(f"DOUBLON  {nom} -> _doublons/")
+            journal(f"DUPLICATE {nom} -> _doublons/")
             continue
         shutil.move(chemin, cible)
         ranges += 1
-        journal(f"RANGE    {nom} -> {os.path.relpath(cible, RACINE)}  ({origine})")
+        journal(f"SORTED    {nom} -> {os.path.relpath(cible, RACINE)}  ({origine})")
 
-    resume = f"OK {datetime.datetime.now():%Y-%m-%d %H:%M} : {ranges} rangee(s), {doublons} doublon(s)"
+    resume = f"OK {datetime.datetime.now():%Y-%m-%d %H:%M} : {ranges} sorted, {doublons} duplicate(s)"
     journal(resume)
     try:
         os.makedirs(os.path.dirname(STATUT), exist_ok=True)
@@ -190,10 +190,10 @@ FIN_TRI
 chmod 755 /usr/local/sbin/tri-photos.py
 
 echo
-echo "=== 3. Service et minuteur (toutes les 5 minutes) ==="
+echo "=== 3. Service and timer (every 5 minutes) ==="
 cat > /etc/systemd/system/tri-photos.service <<'FIN_UNITE'
 [Unit]
-Description=Home Cloud - tri des photos par annee et par mois
+Description=Home Cloud - sort photos by year and month
 RequiresMountsFor=/mnt/wd
 
 [Service]
@@ -205,7 +205,7 @@ FIN_UNITE
 
 cat > /etc/systemd/system/tri-photos.timer <<'FIN_UNITE'
 [Unit]
-Description=Tri des photos toutes les 5 minutes
+Description=Photo sorting every 5 minutes
 
 [Timer]
 OnBootSec=2min
@@ -229,12 +229,12 @@ systemctl daemon-reload
 systemctl enable --now tri-photos.timer
 
 echo
-echo "=== 4. Premier tri, tout de suite ==="
+echo "=== 4. First sort, right now ==="
 systemctl start tri-photos.service
 echo
-tail -n 20 /var/log/tri-photos.log 2>/dev/null || echo "Rien a trier pour l'instant"
+tail -n 20 /var/log/tri-photos.log 2>/dev/null || echo "Nothing to sort yet"
 echo
-echo "=== 5. Nouvelle organisation du dossier photos ==="
+echo "=== 5. New layout of the photos folder ==="
 find /mnt/wd/photos -maxdepth 2 -type d | sort
 echo
 systemctl list-timers tri-photos.timer --no-pager

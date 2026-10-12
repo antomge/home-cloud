@@ -1,5 +1,5 @@
 [Unit]
-Description=Home Cloud - releve SMART des disques pour l'ecran
+Description=Home Cloud - disk SMART reading for the screen
 
 [Service]
 Type=oneshot

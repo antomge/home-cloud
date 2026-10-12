@@ -1,26 +1,26 @@
-# 9. DNS privé et bloqueur de publicités — conteneur 100 « adguard »
+# 9. Private DNS and ad blocker — container 100 "adguard"
 
-Script : `scripts/09-creer-adguard.sh`
+Script: `scripts/09-create-adguard.sh`
 
-## Deux rôles en un
+## Two roles in one
 
-1. **Bloqueur** : AdGuard Home répond « n'existe pas » aux noms des régies publicitaires et des pisteurs. La publicité n'est jamais téléchargée. Résultat mesuré sur un banc d'essai public : **92 %** des éléments bloqués.
-2. **DNS privé** : il connaît les noms internes `*.maison.<domaine>`, qui n'existent nulle part ailleurs.
+1. **Blocker**: AdGuard Home answers "does not exist" for ad-network and tracker domain names. Ads are never downloaded. Result measured on a public test page: **92 %** of elements blocked.
+2. **Private DNS**: it knows the internal `*.maison.<domain>` names, which exist nowhere else.
 
-## Brancher tous les appareils, partout
+## Connecting every device, everywhere
 
-La box Orange ne permet pas de changer le DNS qu'elle distribue. On passe donc par Tailscale : dans la console, AdGuard est déclaré comme **serveur de noms du réseau Tailscale** (avec « Override DNS servers »). Tous les appareils connectés l'utilisent, **à la maison comme en 5G**.
+The Orange ISP router does not allow changing the DNS server it hands out. Tailscale is used instead: in the admin console, AdGuard is declared as the **Tailscale network's nameserver** (with "Override DNS servers"). Every connected device uses it, **at home and over 5G alike**.
 
-Le serveur et ses conteneurs n'utilisent **pas** AdGuard (`--accept-dns=false`) : un serveur ne doit pas dépendre d'un service qu'il héberge lui-même.
+The server and its containers do **not** use AdGuard (`--accept-dns=false`): a server must not depend on a service it hosts itself.
 
-## DNS amont chiffré
+## Encrypted upstream DNS
 
-AdGuard transmet les autres questions à Quad9 et Cloudflare en **DNS sur HTTPS** : ni la box ni le fournisseur d'accès ne voient les sites consultés.
+AdGuard forwards all other queries to Quad9 and Cloudflare over **DNS over HTTPS**: neither the router nor the ISP can see which sites are visited.
 
-## Zone DNS privée (split-horizon)
+## Private DNS zone (split-horizon)
 
-Une réécriture DNS `*.maison.<domaine>` → adresse Tailscale du proxy suffit à faire fonctionner toutes les adresses internes. Sur Internet, ces noms n'existent pas : personne ne peut les découvrir ni les joindre. C'est exactement le rôle d'une **zone Azure Private DNS**.
+A single DNS rewrite `*.maison.<domain>` → the proxy's Tailscale address is enough to make every internal address work. On the Internet, these names do not exist: nobody can discover or reach them. This is exactly the role of an **Azure Private DNS zone**.
 
-## Limites
+## Limitations
 
-Un bloqueur DNS ne voit que les noms, pas le contenu des pages : il ne peut pas bloquer une publicité servie par le même nom que le site (YouTube, publications sponsorisées). Si le conteneur s'arrête, les appareils Tailscale perdent la résolution de noms : c'est un **point de défaillance unique**, assumé ici et documenté.
+A DNS blocker only sees names, not page content: it cannot block an ad served from the same name as the site itself (YouTube, sponsored posts). If the container stops, Tailscale devices lose name resolution: this is a **single point of failure**, accepted here and documented.

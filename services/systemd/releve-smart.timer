@@ -1,5 +1,5 @@
 [Unit]
-Description=Releve SMART toutes les 10 minutes
+Description=SMART reading every 10 minutes
 
 [Timer]
 OnBootSec=1min

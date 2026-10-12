@@ -1,5 +1,5 @@
 [Unit]
-Description=Home Cloud - copie quotidienne des photos vers le Barracuda
+Description=Home Cloud - daily copy of the photos to the Barracuda
 RequiresMountsFor=/mnt/wd /mnt/barracuda
 
 [Service]

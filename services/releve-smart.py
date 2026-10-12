@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Home Cloud - releve SMART des disques (lance par root toutes les 10 min).
-Ecrit /var/lib/homecloud/smart.json, lu par le collecteur de l'ecran."""
+"""Home Cloud - disk SMART readout (run by root every 10 min).
+Writes /var/lib/homecloud/smart.json, read by the dashboard collector."""
 import json
 import os
 import subprocess
 import time
 
 DISQUES = {
-    "NUMERO_SERIE_WD": ("WD Red Plus 4 To", "Données"),
-    "NUMERO_SERIE_BARRACUDA": ("Barracuda 2 To", "Copie photos"),
-    "NUMERO_SERIE_SSD": ("Kingston A400", "Système"),
+    "DISK_SERIAL_WD": ("WD Red Plus 4 To", "Données"),
+    "DISK_SERIAL_BARRACUDA": ("Barracuda 2 To", "Copie photos"),
+    "DISK_SERIAL_SSD": ("Kingston A400", "Système"),
 }
-# Endurance garantie par le fabricant (To ecrits, ou "TBW") : seulement pour les SSD
-ENDURANCE_TO = {"NUMERO_SERIE_SSD": 160}  # Kingston A400 480 Go : 160 To
+# Manufacturer-rated endurance (TB written, or "TBW"): SSDs only
+ENDURANCE_TO = {"DISK_SERIAL_SSD": 160}  # Kingston A400 480 GB: 160 TB
 SORTIE = "/var/lib/homecloud/smart.json"
 
 liste = json.loads(subprocess.run(["lsblk", "-dJo", "NAME,SERIAL"],
@@ -41,7 +41,7 @@ for b in liste.get("blockdevices", []):
         "realloues": brut(5), "en_attente": brut(197),
         "incorrigibles": brut(198), "crc": brut(199),
         "vie_ssd": attrs[231]["value"] if 231 in attrs else None,
-        # Attribut 241 = volume ecrit en Gio sur ce SSD (sur un disque dur Seagate il compte autre chose)
+        # Attribute 241 = GiB written on this SSD (on a Seagate hard drive it counts something else)
         "ecrits_gio": brut(241) if serie in ENDURANCE_TO else None,
         "endurance_to": ENDURANCE_TO.get(serie),
     })
@@ -52,4 +52,4 @@ with open(tmp, "w") as f:
     json.dump({"date": time.time(), "disques": resultat}, f)
 os.chmod(tmp, 0o644)
 os.replace(tmp, SORTIE)
-print(f"{len(resultat)} disque(s) releve(s)")
+print(f"{len(resultat)} disk(s) read")

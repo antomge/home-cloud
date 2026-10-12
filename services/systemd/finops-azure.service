@@ -1,5 +1,5 @@
 [Unit]
-Description=Home Cloud - prix Azure equivalents (API publique prices.azure.com)
+Description=Home Cloud - equivalent Azure prices (public API prices.azure.com)
 Wants=network-online.target
 After=network-online.target
 

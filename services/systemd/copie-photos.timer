@@ -1,5 +1,5 @@
 [Unit]
-Description=Copie des photos chaque nuit vers 3 h
+Description=Photo copy every night around 3 am
 
 [Timer]
 OnCalendar=*-*-* 03:00:00

@@ -1,7 +1,7 @@
 #!/bin/bash
-# Home Cloud - page /liens qui regroupe tous les liens utiles
+# Home Cloud - /liens page that gathers all the useful links
 set -euo pipefail
-if [ "$(id -u)" -ne 0 ]; then echo "ERREUR : a lancer en root."; exit 1; fi
+if [ "$(id -u)" -ne 0 ]; then echo "ERROR: must be run as root."; exit 1; fi
 cat > /opt/supervision/web/liens.html <<'FIN_PAGE'
 <!doctype html>
 <html lang="fr">
@@ -36,9 +36,9 @@ button:hover{border-color:var(--accent);color:var(--accent)}
 <h1>LIENS · HOME CLOUD</h1>
 
 <h2>Services</h2>
-<a class="lien" href="https://jellyfin.maison.exemple.fr"><div><div class="nom">Jellyfin</div>
+<a class="lien" href="https://jellyfin.maison.example.com"><div><div class="nom">Jellyfin</div>
   <div class="det">films et séries</div></div><span class="fleche">›</span></a>
-<a class="lien" href="https://immich.maison.exemple.fr"><div><div class="nom">Immich</div>
+<a class="lien" href="https://immich.maison.example.com"><div><div class="nom">Immich</div>
   <div class="det">photos et recherche</div></div><span class="fleche">›</span></a>
 <a class="lien" href="/"><div><div class="nom">Écran de supervision</div>
   <div class="det">état du serveur</div></div><span class="fleche">›</span></a>
@@ -46,14 +46,14 @@ button:hover{border-color:var(--accent);color:var(--accent)}
   <div class="det">consommation et coût par service</div></div><span class="fleche">›</span></a>
 
 <h2>Administration</h2>
-<a class="lien" href="https://proxmox.maison.exemple.fr"><div><div class="nom">Proxmox</div>
+<a class="lien" href="https://proxmox.maison.example.com"><div><div class="nom">Proxmox</div>
   <div class="det">hyperviseur · compte root, realm Linux PAM</div></div><span class="fleche">›</span></a>
-<a class="lien" href="https://adguard.maison.exemple.fr"><div><div class="nom">AdGuard</div>
+<a class="lien" href="https://adguard.maison.example.com"><div><div class="nom">AdGuard</div>
   <div class="det">DNS et bloqueur de publicités</div></div><span class="fleche">›</span></a>
 <a class="lien" href="https://login.tailscale.com/admin/machines"><div><div class="nom">Console Tailscale</div>
   <div class="det">appareils, DNS, partages</div></div><span class="fleche">›</span></a>
 <a class="lien" href="https://dash.cloudflare.com"><div><div class="nom">Cloudflare</div>
-  <div class="det">domaine exemple.fr</div></div><span class="fleche">›</span></a>
+  <div class="det">domaine example.com</div></div><span class="fleche">›</span></a>
 <a class="lien" href="http://192.168.1.1"><div><div class="nom">Livebox</div>
   <div class="det">à la maison seulement</div></div><span class="fleche">›</span></a>
 <a class="lien" href="https://github.com/antomge/home-cloud"><div><div class="nom">Dépôt GitHub</div>
@@ -84,7 +84,7 @@ import os, sys
 COLL = os.environ.get("COLL", "/opt/supervision/collecteur.py")
 c = open(COLL).read()
 if '"/liens"' in c:
-    print("Route /liens deja presente.")
+    print("Route /liens already present.")
     sys.exit(0)
 avant = '''        elif self.path in ("/finops", "/finops.html"):'''
 apres = '''        elif self.path in ("/liens", "/links"):
@@ -96,12 +96,12 @@ apres = '''        elif self.path in ("/liens", "/links"):
             typ = "text/html; charset=utf-8"
 ''' + avant
 if c.count(avant) != 1:
-    sys.exit("ERREUR : repere introuvable dans le collecteur, rien n'a ete modifie.")
+    sys.exit("ERROR: anchor not found in the collector, nothing was modified.")
 open(COLL, "w").write(c.replace(avant, apres))
-print("Route /liens ajoutee au collecteur.")
+print("Route /liens added to the collector.")
 FIN_CORRECTIF
-python3 -m py_compile /opt/supervision/collecteur.py && echo "Collecteur : syntaxe OK"
+python3 -m py_compile /opt/supervision/collecteur.py && echo "Collector: syntax OK"
 systemctl restart supervision.service
 sleep 2
-curl -s -o /dev/null -w "Page /liens : %{http_code}\n" http://127.0.0.1:8088/liens
-echo "TERMINE : https://tableau.maison.exemple.fr/liens"
+curl -s -o /dev/null -w "Page /liens: %{http_code}\n" http://127.0.0.1:8088/liens
+echo "DONE: https://tableau.maison.example.com/liens"

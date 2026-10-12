@@ -1,26 +1,26 @@
-# 8. Immich — galerie photos avec recherche par contenu (conteneur 103)
+# 8. Immich — photo gallery with content-based search (container 103)
 
-Script : `scripts/08-creer-immich.sh`
+Script: `scripts/08-create-immich.sh`
 
-## Rôle
+## Role
 
-Retrouver ses photos par leur contenu (« plage », « chat », « anniversaire »), par visage ou par lieu, comme dans l'app Photos de l'iPhone, mais sur son propre serveur. La recherche utilise un **modèle d'analyse multilingue**, pour pouvoir chercher en français.
+Find photos by their content ("beach", "cat", "birthday"), by face or by location, like in the iPhone Photos app, but on your own server. Search uses a **multilingual model**, so queries can be written in French.
 
 ## Architecture
 
-Immich est distribué sous forme de plusieurs conteneurs Docker (serveur, apprentissage automatique, PostgreSQL, Redis). Ils tournent **dans un conteneur LXC non privilégié**, ce qui demande les options `nesting=1,keyctl=1`.
+Immich is distributed as several Docker containers (server, machine learning, PostgreSQL, Redis). They run **inside an unprivileged LXC container**, which requires the `nesting=1,keyctl=1` options.
 
-| Élément | Emplacement | Pourquoi |
+| Component | Location | Why |
 |---|---|---|
-| Photos | `/mnt/wd/photos` monté en **lecture seule** | Immich lit la photothèque existante sans pouvoir la modifier |
-| Miniatures, aperçus vidéo, sauvegardes de la base | `/mnt/wd/immich` | Données volumineuses et régénérables : sur le disque dur |
-| Base PostgreSQL | dans le conteneur, sur le SSD | Petite, mais très sollicitée en lecture/écriture aléatoire |
-| Mot de passe de la base | `/opt/immich/.env`, généré à l'installation, lisible par root | Jamais saisi ni affiché |
+| Photos | `/mnt/wd/photos` mounted **read-only** | Immich reads the existing photo library without being able to modify it |
+| Thumbnails, video previews, database backups | `/mnt/wd/immich` | Large, regenerable data: kept on the hard drive |
+| PostgreSQL database | inside the container, on the SSD | Small, but under heavy random read/write load |
+| Database password | `/opt/immich/.env`, generated at install time, readable by root | Never typed or displayed |
 
-## Ressources
+## Resources
 
-4 cœurs et 7 Go de mémoire au maximum : ce sont des **plafonds**, pas des réservations. L'analyse initiale de la photothèque (visages, contenu) est le moment le plus gourmand ; on le voit très bien sur la [page FinOps](11-finops.md), où Immich est le premier consommateur pendant cette phase.
+At most 4 cores and 7 GB of memory: these are **limits**, not reservations. The initial analysis of the photo library (faces, content) is the most resource-hungry phase; it shows up clearly on the [FinOps page](11-finops.md), where Immich is the top consumer during that phase.
 
-## Accès
+## Access
 
-`https://immich.maison.<domaine>` via le [proxy HTTPS](10-proxy-https.md), dans le navigateur ou l'application mobile Immich.
+`https://immich.maison.<domain>` via the [HTTPS proxy](10-https-reverse-proxy.md), in the browser or the Immich mobile app.

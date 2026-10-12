@@ -1,38 +1,38 @@
-# 5. Jellyfin et transcodage matériel — conteneur 102
+# 5. Jellyfin and hardware transcoding — container 102
 
-Script : `scripts/04-creer-jellyfin.sh`
+Script: `scripts/04-create-jellyfin.sh`
 
-## Rôle
+## Role
 
-Regarder ses films partout : sur la télé, le PC, ou l'iPhone avec l'application Streamyfin, y compris en 5G via Tailscale.
+Watch movies anywhere: on the TV, the PC, or the iPhone with the Streamyfin app, including over 5G via Tailscale.
 
-## Transcodage matériel (Intel Quick Sync)
+## Hardware transcoding (Intel Quick Sync)
 
-Quand la connexion est trop faible pour le fichier d'origine (en 4G par exemple), Jellyfin **réencode** la vidéo à la volée dans une qualité plus légère. Fait par le processeur, c'est très lourd ; fait par la puce graphique intégrée UHD 630 (Quick Sync), c'est presque gratuit.
+When the connection is too slow for the original file (on 4G, for example), Jellyfin **re-encodes** the video on the fly at a lower quality. Done by the CPU, this is very heavy; done by the UHD 630 integrated graphics (Quick Sync), it is almost free.
 
-Pour la donner au conteneur, on transmet uniquement le périphérique de rendu, avec le groupe `render` du conteneur :
+To give the GPU to the container, only the render device is passed through, with the container's `render` group:
 
 ```
 dev0: /dev/dri/renderD128,gid=992
 ```
 
-Résultat vérifié pendant un transcodage : décodage et encodage H.264/HEVC par la puce graphique, processeur inoccupé à environ 78 %.
+Result verified during a transcode: H.264/HEVC decoding and encoding on the GPU, CPU about 78 % idle.
 
-## Choix de configuration
+## Configuration choices
 
-| Réglage | Pourquoi |
+| Setting | Why |
 |---|---|
-| Films montés en **lecture seule** (`ro=1`) | Jellyfin ne peut pas modifier ni supprimer la médiathèque |
-| Dossier de transcodage sur le WD (`/mnt/wd/transcodage-jellyfin`) | Les fichiers temporaires du transcodage usent le SSD : on les envoie sur le disque dur |
-| 4 cœurs, 3 Go de mémoire | Marge pour plusieurs lectures simultanées |
-| Dépôt officiel `repo.jellyfin.org` | `jellyfin-ffmpeg` inclut le pilote Intel iHD |
+| Movies mounted **read-only** (`ro=1`) | Jellyfin cannot modify or delete the media library |
+| Transcoding folder on the WD (`/mnt/wd/transcodage-jellyfin`) | Temporary transcoding files wear out the SSD, so they are sent to the hard drive |
+| 4 cores, 3 GB of memory | Headroom for several simultaneous streams |
+| Official `repo.jellyfin.org` repository | `jellyfin-ffmpeg` includes the Intel iHD driver |
 
-Le dossier de transcodage n'apparaît plus dans l'interface de Jellyfin 10.12 : il est réglé directement dans `/etc/jellyfin/encoding.xml` (`TranscodingTempPath`).
+The transcoding folder no longer appears in the Jellyfin 10.12 web interface: it is set directly in `/etc/jellyfin/encoding.xml` (`TranscodingTempPath`).
 
-## Qualité en mobilité
+## Quality on the go
 
-En 4G, le débit de streaming est limité vers 720p à environ 4 Mbit/s (≈ 1,8 Go par heure), pour ménager un forfait de 250 Go.
+On 4G, the streaming bitrate is capped at around 720p and about 4 Mbit/s (≈ 1.8 GB per hour), to spare a 250 GB mobile data plan.
 
-## Accès
+## Access
 
-`https://jellyfin.maison.<domaine>` via le [proxy HTTPS](10-proxy-https.md), depuis n'importe quel appareil Tailscale.
+`https://jellyfin.maison.<domain>` via the [HTTPS proxy](10-https-reverse-proxy.md), from any Tailscale device.

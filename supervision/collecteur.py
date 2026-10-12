@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Home Cloud - collecteur de mesures pour l'ecran de supervision.
+"""Home Cloud - metrics collector for the monitoring dashboard.
 
-Sert la page /opt/supervision/web/index.html et l'API /api/etat.
-N'ecoute que sur 127.0.0.1 : rien n'est expose sur le reseau.
-Bibliotheque standard uniquement (aucune dependance a installer).
+Serves the page /opt/supervision/web/index.html and the /api/etat API.
+Listens on 127.0.0.1 only: nothing is exposed on the network.
+Standard library only (no dependency to install).
 """
 import glob
 import json
@@ -21,7 +21,7 @@ INTERFACE = os.environ.get("INTERFACE", "nic0")
 NOEUD = os.environ.get("NOEUD", "serveur")
 JF_URL = os.environ.get("JELLYFIN_URL", "").rstrip("/")
 JF_CLE = os.environ.get("JELLYFIN_CLE", "")
-PVE_JETON = os.environ.get("PVE_JETON", "")  # forme : utilisateur@pve!nom=secret
+PVE_JETON = os.environ.get("PVE_JETON", "")  # format: user@pve!name=secret
 PAGE = os.environ.get("PAGE", "/opt/supervision/web/index.html")
 ETAT_DIR = os.environ.get("ETAT_DIR", "/var/lib/homecloud")
 DUMP_DIR = os.environ.get("DUMP_DIR", "/mnt/wd/sauvegardes/dump")
@@ -32,8 +32,8 @@ DISQUES = [
     ("Système", "Kingston A400 · 480 Go", "/"),
 ]
 
-# Certificat auto-signe de Proxmox : verification desactivee UNIQUEMENT
-# pour l'appel vers 127.0.0.1 (le serveur lui-meme).
+# Proxmox self-signed certificate: verification disabled ONLY
+# for the call to 127.0.0.1 (the server itself).
 CTX_LOCAL = ssl.create_default_context()
 CTX_LOCAL.check_hostname = False
 CTX_LOCAL.verify_mode = ssl.CERT_NONE
@@ -47,12 +47,12 @@ def maj(**valeurs):
         etat.update(valeurs)
 
 
-# ---------- Mesures rapides (chaque seconde) ----------
+# ---------- Fast metrics (every second) ----------
 
 def lire_cpu():
     with open("/proc/stat") as f:
         v = [int(x) for x in f.readline().split()[1:]]
-    return sum(v), v[3] + v[4]  # total, inactif (idle + iowait)
+    return sum(v), v[3] + v[4]  # total, idle (idle + iowait)
 
 
 def lire_reseau():
@@ -60,7 +60,7 @@ def lire_reseau():
         for ligne in f:
             if ligne.strip().startswith(INTERFACE + ":"):
                 c = ligne.split(":", 1)[1].split()
-                return int(c[0]), int(c[8])  # octets recus, octets envoyes
+                return int(c[0]), int(c[8])  # bytes received, bytes sent
     return 0, 0
 
 
@@ -99,14 +99,14 @@ def lire_texte(chemin):
 
 
 def lire_frequences():
-    """Frequence actuelle de chaque coeur en GHz, plafond autorise, maximum materiel, turbo."""
+    """Current frequency of each core in GHz, allowed cap, hardware maximum, turbo."""
     coeurs = []
     fichiers = glob.glob(CPUFREQ + "/cpu[0-9]*/cpufreq/scaling_cur_freq")
-    for f in sorted(fichiers, key=lambda c: int(c.split("/")[-3][3:])):   # cpu0, cpu1… cpu10 dans l'ordre
+    for f in sorted(fichiers, key=lambda c: int(c.split("/")[-3][3:])):   # cpu0, cpu1... cpu10 in order
         v = lire_texte(f)
         if v and v.isdigit():
-            coeurs.append(int(v) / 1e6)              # le noyau donne des kHz
-    if not coeurs:                                   # repli si cpufreq est absent
+            coeurs.append(int(v) / 1e6)              # the kernel reports kHz
+    if not coeurs:                                   # fallback if cpufreq is missing
         try:
             with open("/proc/cpuinfo") as f:
                 coeurs = [float(l.split(":")[1]) / 1000 for l in f if l.startswith("cpu MHz")]
@@ -154,11 +154,11 @@ def boucle_rapide():
                 mem_total=mem_total, mem_util=mem_util, temp_cpu=lire_temp_cpu(), freq=lire_frequences(),
                 uptime=uptime, charge_moyenne=charge_moy, horodatage=t, pret=True)
             cpu_prec, net_prec, t_prec = cpu, net, t
-        except Exception as e:  # on ne laisse jamais la boucle mourir
+        except Exception as e:  # never let the loop die
             maj(erreur_rapide=str(e)[:200])
 
 
-# ---------- Mesures lentes (toutes les 15 s) ----------
+# ---------- Slow metrics (every 15 s) ----------
 
 def get_json(url, entetes=None, contexte=None, delai=4):
     req = urllib.request.Request(url, headers=entetes or {})
@@ -184,7 +184,7 @@ def lire_disques():
 def lire_jellyfin():
     if not (JF_URL and JF_CLE):
         return {"ok": False, "erreur": "non configuré"}
-    # En-tete d'authentification moderne (les anciens en-tetes "X-Emby-Token" sont refuses par defaut depuis Jellyfin 10.11+)
+    # Modern authentication header (the old "X-Emby-Token" headers are rejected by default since Jellyfin 10.11+)
     h = {"Authorization": f'MediaBrowser Token="{JF_CLE}"'}
     try:
         c = get_json(JF_URL + "/Items/Counts", h)
@@ -285,7 +285,7 @@ def boucle_lente():
         time.sleep(15)
 
 
-# ---------- Serveur web ----------
+# ---------- Web server ----------
 
 class Gestionnaire(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -325,7 +325,7 @@ class Gestionnaire(BaseHTTPRequestHandler):
         self.wfile.write(corps)
 
     def log_message(self, *args):
-        pass  # pas de journal pour chaque requete
+        pass  # no log line for every request
 
 
 if __name__ == "__main__":

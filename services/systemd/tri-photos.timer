@@ -1,5 +1,5 @@
 [Unit]
-Description=Tri des photos toutes les 5 minutes
+Description=Photo sorting every 5 minutes
 
 [Timer]
 OnBootSec=2min

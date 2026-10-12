@@ -1,12 +1,12 @@
-# Home Cloud — un cloud d'entreprise en miniature sur un vieux PC
+# Home Cloud — a miniature enterprise cloud on an old PC
 
-Un ancien PC de bureau transformé en **petit centre de données personnel**, construit comme le serait l'infrastructure d'une entreprise : hyperviseur, services isolés en conteneurs, accès distant « zéro confiance », DNS privé, HTTPS automatique, sauvegardes, supervision et **pilotage des coûts (FinOps)**.
+An old desktop PC turned into a **small personal data center**, built the way a company's infrastructure would be: hypervisor, services isolated in containers, zero-trust remote access, private DNS, automatic HTTPS, backups, monitoring and **cost management (FinOps)**.
 
-Projet personnel réalisé en octobre 2026 par **Antoine**, étudiant ingénieur en 4ᵉ année à l'ESIEA (Laval), pour apprendre concrètement le fonctionnement du cloud.
+Personal project built in October 2026 by **Antoine**, 4th-year engineering student at ESIEA (Laval, France), to learn hands-on how the cloud works.
 
-![Écran de supervision branché sur le serveur](captures/ecran-supervision.jpg)
+![Monitoring screen connected to the server](screenshots/dashboard-screen.jpg)
 
-> **In English —** A repurposed desktop PC running Proxmox VE and five unprivileged LXC containers (SMB file share, Jellyfin with Intel Quick Sync, Immich, AdGuard Home DNS, Caddy reverse proxy). Remote access is zero‑trust over Tailscale with **no open ports**, internal names resolve through a private DNS zone, and HTTPS uses a Let's Encrypt wildcard certificate obtained by DNS‑01 challenge. Nightly snapshots, a soft‑delete photo copy, SMART monitoring, a custom kiosk dashboard, and a **FinOps showback page** that measures real CPU energy (Intel RAPL), allocates cost per service and compares the total cost of ownership with live Azure retail prices (~13 €/month at home vs ~260 €/month on Azure pay‑as‑you‑go). Every component is mapped to its Azure equivalent below.
+> **TL;DR —** A repurposed desktop PC running Proxmox VE and five unprivileged LXC containers (SMB file share, Jellyfin with Intel Quick Sync, Immich, AdGuard Home DNS, Caddy reverse proxy). Remote access is zero-trust over Tailscale with **no open ports**, internal names resolve through a private DNS zone, and HTTPS uses a Let's Encrypt wildcard certificate obtained via the DNS-01 challenge. Nightly snapshots, a soft-delete photo copy, SMART monitoring, a custom kiosk dashboard, and a **FinOps showback page** that measures real CPU energy (Intel RAPL), allocates cost per service and compares the total cost of ownership with live Azure retail prices (~13 €/month at home vs ~260 €/month on Azure pay-as-you-go). Every component is mapped to its Azure equivalent below.
 
 ---
 
@@ -14,142 +14,142 @@ Projet personnel réalisé en octobre 2026 par **Antoine**, étudiant ingénieur
 
 ```mermaid
 flowchart LR
-    A["iPhone, iPad, PC<br/>(réseau Tailscale)"]
+    A["iPhone, iPad, PC<br/>(Tailscale network)"]
 
     subgraph Internet
-        CF[Cloudflare DNS<br/>défi DNS-01]
+        CF[Cloudflare DNS<br/>DNS-01 challenge]
         LE[Let's Encrypt]
-        AZ[API des prix Azure]
+        AZ[Azure Retail Prices API]
     end
 
-    subgraph Serveur["Serveur — Proxmox VE 9.2 (i5-9500, 16 Go)"]
+    subgraph Serveur["Server — Proxmox VE 9.2 (i5-9500, 16 GB)"]
         direction TB
-        AG["CT 100 · adguard<br/>DNS privé + bloqueur"]
+        AG["CT 100 · adguard<br/>private DNS + blocker"]
         PX["CT 104 · proxy<br/>Caddy HTTPS"]
         SMB["CT 101 · partage<br/>Samba SMB3"]
         JF["CT 102 · jellyfin<br/>Quick Sync"]
-        IM["CT 103 · immich<br/>photos + IA"]
-        SUP["Hôte · supervision<br/>+ FinOps"]
-        WD[("WD Red 4 To<br/>données + sauvegardes")]
-        BA[("Barracuda 2 To<br/>copie des photos")]
+        IM["CT 103 · immich<br/>photos + AI"]
+        SUP["Host · monitoring<br/>+ FinOps"]
+        WD[("WD Red 4 TB<br/>data + backups")]
+        BA[("Barracuda 2 TB<br/>photo copy")]
     end
 
-    A -- "1. nom ? (DNS)" --> AG
+    A -- "1. name? (DNS)" --> AG
     A -- "2. HTTPS" --> PX
     A -- "SMB" --> SMB
     PX --> JF & IM & AG & SUP
-    PX -. certificat .-> LE
-    PX -. preuve de propriété .-> CF
-    SUP -. prix .-> AZ
+    PX -. certificate .-> LE
+    PX -. proof of ownership .-> CF
+    SUP -. prices .-> AZ
     SMB & JF & IM --- WD
-    WD -- "copie nocturne" --> BA
+    WD -- "nightly copy" --> BA
 ```
 
-**Principe :** aucun port n'est ouvert sur la box. Tout passe par le réseau privé chiffré **Tailscale** (WireGuard). AdGuard répond aux noms `*.maison.<domaine>` par l'adresse du proxy ; ces noms n'existent pas dans le DNS public.
+**Principle:** no port is open on the ISP router. Everything goes through the encrypted **Tailscale** private network (WireGuard). AdGuard answers queries for `*.maison.<domain>` with the proxy's address; these names do not exist in public DNS. (Internal names are in French: `maison` means "home", and `tableau` in `tableau.maison.<domain>` means "dashboard".)
 
-| Conteneur | Rôle | Ressources | Points clés |
+| Container | Role | Resources | Key points |
 |---|---|---|---|
-| **100 · adguard** | DNS des appareils Tailscale, blocage pub et pisteurs, zone DNS privée | 1 cœur, 512 Mo | DNS amont chiffré (DoH), réécriture `*.maison.<domaine>` |
-| **101 · partage** | Partage de fichiers photos et films (PC, iPhone) | 1 cœur, 512 Mo | SMB3 minimum, pas d'invité, NetBIOS coupé, module `fruit` pour iOS |
-| **102 · jellyfin** | Streaming des films (Streamyfin sur iPhone, y compris en 5G) | 4 cœurs, 3 Go | Transcodage matériel Intel Quick Sync, films montés **en lecture seule** |
-| **103 · immich** | Galerie photos avec recherche par contenu (modèle multilingue) | 4 cœurs, 7 Go | Docker dans un LXC non privilégié, photos **en lecture seule** |
-| **104 · proxy** | Porte d'entrée HTTPS unique | 1 cœur, 512 Mo | Caddy, certificat générique Let's Encrypt par défi DNS |
-| **Hôte** | Supervision, écran HDMI, sauvegardes, FinOps, tri des photos | — | Collecteur Python sans dépendance, minuteurs systemd |
+| **100 · adguard** | DNS for Tailscale devices, ad and tracker blocking, private DNS zone | 1 core, 512 MB | Encrypted upstream DNS (DoH), `*.maison.<domain>` rewrite |
+| **101 · partage** (share) | File sharing for photos and movies (PC, iPhone) | 1 core, 512 MB | SMB3 minimum, no guest access, NetBIOS disabled, `fruit` module for iOS |
+| **102 · jellyfin** | Movie streaming (Streamyfin on iPhone, including over 5G) | 4 cores, 3 GB | Intel Quick Sync hardware transcoding, movies mounted **read-only** |
+| **103 · immich** | Photo gallery with content-based search (multilingual model) | 4 cores, 7 GB | Docker inside an unprivileged LXC, photos **read-only** |
+| **104 · proxy** | Single HTTPS entry point | 1 core, 512 MB | Caddy, Let's Encrypt wildcard certificate via DNS challenge |
+| **Host** | Monitoring, HDMI screen, backups, FinOps, photo sorting | — | Dependency-free Python collector, systemd timers |
 
 ---
 
-## Ce que chaque brique représente dans le cloud (Azure)
+## What each component represents in the cloud (Azure)
 
-| Brique du Home Cloud | Équivalent Azure | Notion illustrée |
+| Home Cloud component | Azure equivalent | Concept illustrated |
 |---|---|---|
-| Proxmox VE + conteneurs LXC | Machines virtuelles, Azure Container Instances / AKS | Virtualisation, isolation, mutualisation d'un hôte |
-| Conteneurs **non privilégiés**, montages en lecture seule | Rôles RBAC, identités à privilèges minimaux | Moindre privilège |
-| WD Red (données) + stockage `sauvegardes` | Managed Disks, Azure Files | Séparer système, données et sauvegardes |
-| Instantanés `vzdump` nocturnes (7 jours + 4 semaines) | Azure Backup, coffre Recovery Services | Rétention, RPO / RTO |
-| Copie `rsync` avec corbeille 90 jours | Suppression réversible (soft delete) du stockage Blob | Protection contre l'erreur humaine |
-| Tailscale (WireGuard), aucun port ouvert | VPN Gateway, Azure Bastion, points de terminaison privés | Zéro confiance, pas d'exposition publique |
-| AdGuard : réécritures DNS | Zones Azure Private DNS, DNS Private Resolver | DNS privé (split-horizon) |
-| Caddy, proxy inverse unique | Application Gateway / Front Door | Point d'entrée unique, terminaison TLS |
-| Let's Encrypt par défi DNS-01 | Certificats gérés, Key Vault | Renouvellement automatique sans port entrant |
-| Jeton Cloudflare limité à une zone, jeton Proxmox en lecture seule | Identité managée + rôle restreint | Moindre privilège appliqué aux API |
-| Fichiers `.env` en `640`, jamais versionnés | Azure Key Vault | Gestion des secrets |
-| Collecteur + écran de supervision + relevés SMART | Azure Monitor, classeurs (Workbooks) | Observabilité |
-| Page FinOps : énergie mesurée, coût par service, comparaison | Cost Management, étiquettes, showback | FinOps : visibilité, imputation, coût total |
+| Proxmox VE + LXC containers | Virtual Machines, Azure Container Instances / AKS | Virtualization, isolation, sharing a single host |
+| **Unprivileged** containers, read-only mounts | RBAC roles, least-privilege identities | Least privilege |
+| WD Red (data) + `sauvegardes` (backups) storage | Managed Disks, Azure Files | Separating system, data and backups |
+| Nightly `vzdump` snapshots (7 days + 4 weeks) | Azure Backup, Recovery Services vault | Retention, RPO / RTO |
+| `rsync` copy with 90-day recycle bin | Blob Storage soft delete | Protection against human error |
+| Tailscale (WireGuard), no open ports | VPN Gateway, Azure Bastion, private endpoints | Zero trust, no public exposure |
+| AdGuard: DNS rewrites | Azure Private DNS zones, DNS Private Resolver | Private DNS (split-horizon) |
+| Caddy, single reverse proxy | Application Gateway / Front Door | Single entry point, TLS termination |
+| Let's Encrypt via DNS-01 challenge | Managed certificates, Key Vault | Automatic renewal with no inbound port |
+| Cloudflare token scoped to one zone, read-only Proxmox token | Managed identity + restricted role | Least privilege applied to APIs |
+| `.env` files with mode `640`, never committed | Azure Key Vault | Secrets management |
+| Collector + monitoring screen + SMART readings | Azure Monitor, Workbooks | Observability |
+| FinOps page: measured energy, cost per service, comparison | Cost Management, tags, showback | FinOps: visibility, cost allocation, total cost |
 
 ---
 
-## FinOps : combien coûte vraiment ce serveur ?
+## FinOps: how much does this server really cost?
 
-La page `/finops` du tableau de bord répond à trois questions :
+The dashboard's `/finops` page answers three questions:
 
-1. **Combien ça consomme ?** L'énergie du processeur est **mesurée** chaque minute grâce à ses compteurs intégrés (Intel RAPL). Le reste du PC (disques, carte mère) est estimé, puis on applique le rendement de l'alimentation.
-2. **Qui consomme quoi ?** Chaque minute est **imputée aux services** (*showback*) :
-   - la **part variable** (processeur au-dessus du repos) au prorata du temps processeur réellement consommé par chaque conteneur ;
-   - la **part fixe** (repos, disques, carte mère) au prorata de la mémoire réservée, comme une capacité réservée dans le cloud.
-3. **Et sur Azure ?** Les prix publics sont relevés chaque semaine via l'API des prix de détail Azure (sans compte), pour une VM B4ms et un disque de 4 To en France Centre.
+1. **How much power does it draw?** CPU energy is **measured** every minute using its built-in counters (Intel RAPL). The rest of the PC (disks, motherboard) is estimated, then the power supply efficiency is applied.
+2. **Who consumes what?** Every minute is **allocated to services** (*showback*):
+   - the **variable share** (CPU above idle) in proportion to the CPU time actually used by each container;
+   - the **fixed share** (idle, disks, motherboard) in proportion to reserved memory, like reserved capacity in the cloud.
+3. **What would it cost on Azure?** Public prices are fetched every week through the Azure Retail Prices API (no account needed), for a B4ms VM and a 4 TB disk in France Central.
 
-**Premiers résultats (octobre 2026) :**
+**First results (October 2026):**
 
-| | Par mois |
+| | Per month |
 |---|---|
-| Électricité (≈ 22 W à la prise, 0,2001 €/kWh) | ≈ 3,2 € |
-| Matériel acheté pour le projet, amorti sur 36 mois | 9,55 € |
-| **Total Home Cloud** | **≈ 13 €** |
-| VM Azure B4ms (Linux, à l'usage) | 121,40 € |
-| Disque HDD standard S50 (4 To) | 138,75 € |
-| **Total Azure équivalent** | **≈ 260 €** |
+| Electricity (≈ 22 W at the wall, 0.2001 €/kWh) | ≈ 3.2 € |
+| Hardware bought for the project, amortized over 36 months | 9.55 € |
+| **Home Cloud total** | **≈ 13 €** |
+| Azure B4ms VM (Linux, pay-as-you-go) | 121.40 € |
+| Standard HDD S50 disk (4 TB) | 138.75 € |
+| **Equivalent Azure total** | **≈ 260 €** |
 
-Le cloud n'est pas « trop cher » en soi : c'est un usage **stable, 24 h/24, avec beaucoup de stockage**, le pire cas pour un tarif à l'usage. Sur Azure, les leviers seraient une réservation sur 1 ou 3 ans, du stockage Blob froid pour les photos et l'arrêt de la VM la nuit. En échange, Azure apporterait ce que le serveur maison n'a pas : haute disponibilité, copie hors site, aucune panne matérielle à gérer.
+The cloud is not "too expensive" per se: this is a **steady, 24/7, storage-heavy** workload, the worst case for pay-as-you-go pricing. On Azure, the levers would be a 1- or 3-year reservation, cool Blob storage for the photos, and shutting the VM down at night. In return, Azure would provide what the home server lacks: high availability, an off-site copy, and no hardware failures to deal with.
 
-Méthode complète et hypothèses : [docs/11-finops.md](docs/11-finops.md).
+Full method and assumptions: [docs/11-finops.md](docs/11-finops.md).
 
 ---
 
-## Contenu du dépôt
+## Repository contents
 
 ```
-docs/          une page par étape, avec les choix et leurs raisons
-scripts/       scripts d'installation, numérotés dans l'ordre de construction
-services/      scripts lancés par systemd (copie, SMART, tri des photos, FinOps) + unités
-supervision/   collecteur Python et pages du tableau de bord (écran + FinOps)
-configs/       configurations réelles nettoyées et modèles .exemple pour les secrets
-captures/      photos et captures d'écran
+docs/          one page per step, with the choices made and why
+scripts/       installation scripts, numbered in build order
+services/      scripts run by systemd (copy, SMART, photo sorting, FinOps) + units
+supervision/   Python collector and dashboard pages (screen + FinOps)
+configs/       sanitized real configurations and .example templates for secrets
+screenshots/   photos and screenshots
 ```
 
-| Étape | Documentation | Script |
+| Step | Documentation | Script |
 |---|---|---|
-| 1. Matériel et Proxmox | [01-materiel-et-proxmox.md](docs/01-materiel-et-proxmox.md) | — |
-| 2. Disques, stockage et sauvegardes | [02-stockage-et-sauvegardes.md](docs/02-stockage-et-sauvegardes.md) | `01-preparer-disques.sh` |
-| 3. Partage de fichiers SMB | [03-partage-smb.md](docs/03-partage-smb.md) | `02-creer-partage.sh` |
-| 4. Accès distant Tailscale | [04-acces-distant-tailscale.md](docs/04-acces-distant-tailscale.md) | `03-tailscale-partage.sh` |
-| 5. Jellyfin et Quick Sync | [05-jellyfin.md](docs/05-jellyfin.md) | `04-creer-jellyfin.sh` |
-| 6. Supervision et écran | [06-supervision.md](docs/06-supervision.md) | `05-installer-ecran.sh`, `06-installer-affichage.sh` |
-| 7. Tri automatique des photos | [07-tri-photos.md](docs/07-tri-photos.md) | `07-installer-tri-photos.sh` |
-| 8. Immich | [08-immich.md](docs/08-immich.md) | `08-creer-immich.sh` |
-| 9. DNS privé et bloqueur | [09-dns-adguard.md](docs/09-dns-adguard.md) | `09-creer-adguard.sh` |
-| 10. Proxy inverse HTTPS | [10-proxy-https.md](docs/10-proxy-https.md) | `10-creer-proxy.sh` |
-| 11. FinOps | [11-finops.md](docs/11-finops.md) | `11-installer-finops.sh`, `12-ajout-bascule.sh` |
-| Page de liens rapides | [06-supervision.md](docs/06-supervision.md) | `13-ajout-liens.sh` |
-| Dossier « papiers » personnel | [03-partage-smb.md](docs/03-partage-smb.md) | `14-ajout-papiers.sh` |
-| Sécurité | [securite.md](docs/securite.md) | `exporter-home-cloud.sh` |
-| Problèmes rencontrés | [lecons-apprises.md](docs/lecons-apprises.md) | — |
+| 1. Hardware and Proxmox | [01-hardware-and-proxmox.md](docs/01-hardware-and-proxmox.md) | — |
+| 2. Disks, storage and backups | [02-storage-and-backups.md](docs/02-storage-and-backups.md) | `01-prepare-disks.sh` |
+| 3. SMB file share | [03-smb-file-share.md](docs/03-smb-file-share.md) | `02-create-share.sh` |
+| 4. Tailscale remote access | [04-remote-access-tailscale.md](docs/04-remote-access-tailscale.md) | `03-tailscale-share.sh` |
+| 5. Jellyfin and Quick Sync | [05-jellyfin.md](docs/05-jellyfin.md) | `04-create-jellyfin.sh` |
+| 6. Monitoring and screen | [06-monitoring-dashboard.md](docs/06-monitoring-dashboard.md) | `05-install-dashboard.sh`, `06-install-display.sh` |
+| 7. Automatic photo sorting | [07-photo-sorter.md](docs/07-photo-sorter.md) | `07-install-photo-sorter.sh` |
+| 8. Immich | [08-immich.md](docs/08-immich.md) | `08-create-immich.sh` |
+| 9. Private DNS and blocker | [09-dns-adguard.md](docs/09-dns-adguard.md) | `09-create-adguard.sh` |
+| 10. HTTPS reverse proxy | [10-https-reverse-proxy.md](docs/10-https-reverse-proxy.md) | `10-create-proxy.sh` |
+| 11. FinOps | [11-finops.md](docs/11-finops.md) | `11-install-finops.sh`, `12-add-dashboard-toggle.sh` |
+| Quick links page | [06-monitoring-dashboard.md](docs/06-monitoring-dashboard.md) | `13-add-links-page.sh` |
+| Personal "papiers" (documents) folder | [03-smb-file-share.md](docs/03-smb-file-share.md) | `14-add-papers-share.sh` |
+| Security | [security.md](docs/security.md) | `export-home-cloud.sh` |
+| Issues encountered | [lessons-learned.md](docs/lessons-learned.md) | — |
 
-Les scripts sont écrits pour **cette** installation (Proxmox VE 9, Debian 13, réseau `192.168.1.0/24`) et se lancent en root sur l'hôte. Ils vérifient leurs prérequis, demandent les mots de passe en saisie masquée et s'arrêtent au moindre doute plutôt que de casser quelque chose.
+The scripts are written for **this** installation (Proxmox VE 9, Debian 13, `192.168.1.0/24` network) and run as root on the host. They check their prerequisites, prompt for passwords with hidden input, and stop at the slightest doubt rather than break something.
 
-## Sécurité du dépôt
+## Repository security
 
-Aucun secret n'est versionné. Les mots de passe, la clé d'API Jellyfin, le jeton Proxmox et le jeton Cloudflare vivent uniquement dans des fichiers protégés sur le serveur ; le dépôt ne contient que des modèles `.exemple`. Les numéros de série des disques, les adresses MAC, les adresses Tailscale et le nom de domaine ont été remplacés par des valeurs d'exemple.
+No secrets are committed. Passwords, the Jellyfin API key, the Proxmox token and the Cloudflare token live only in protected files on the server; the repository contains only `.example` templates. Disk serial numbers, MAC addresses, Tailscale addresses and the domain name have been replaced with placeholder values.
 
-## Limites assumées
+## Known limitations
 
-- **Pas de copie hors site** : les deux disques sont dans la même machine (règle 3-2-1 incomplète). Un incendie ou un vol emporterait tout.
-- **Un seul serveur** : aucune haute disponibilité ; une panne matérielle coupe tous les services.
-- **Consommation hors processeur estimée** (14 W) : à confirmer avec une prise wattmètre.
+- **No off-site copy**: both disks are in the same machine (3-2-1 rule not fully met). A fire or theft would take everything.
+- **Single server**: no high availability; a hardware failure takes down every service.
+- **Non-CPU power draw is estimated** (14 W): to be confirmed with a plug-in power meter.
 
-## Compétences mises en œuvre
+## Skills applied
 
-Virtualisation (Proxmox VE, LXC) · Linux (Debian, systemd, ext4, fstab, droits et décalage d'UID) · Réseau (DHCP, DNS, WireGuard/Tailscale, SMB3) · Sécurité (zéro confiance, moindre privilège, gestion des secrets) · TLS et certificats (ACME, défi DNS-01) · Stockage et sauvegarde (instantanés, rétention, suppression réversible, SMART) · Supervision (API Proxmox et Jellyfin, `/proc`, capteurs) · Automatisation (Bash, Python) · FinOps (mesure, imputation, coût total de possession, API de prix Azure).
+Virtualization (Proxmox VE, LXC) · Linux (Debian, systemd, ext4, fstab, permissions and UID mapping) · Networking (DHCP, DNS, WireGuard/Tailscale, SMB3) · Security (zero trust, least privilege, secrets management) · TLS and certificates (ACME, DNS-01 challenge) · Storage and backup (snapshots, retention, soft delete, SMART) · Monitoring (Proxmox and Jellyfin APIs, `/proc`, sensors) · Automation (Bash, Python) · FinOps (measurement, cost allocation, total cost of ownership, Azure pricing API).
 
-## Licence
+## License
 
-Code publié sous licence MIT (voir [LICENSE](LICENSE)).
+Code released under the MIT License (see [LICENSE](LICENSE)).

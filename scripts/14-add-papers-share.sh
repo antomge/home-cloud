@@ -1,33 +1,33 @@
 #!/bin/bash
-# Home Cloud - dossier "papiers" (documents personnels) a cote de photos et films
-#  - /mnt/wd/papiers, accessible uniquement par anto (ni Jellyfin ni Immich n'y ont acces)
-#  - partage SMB [papiers] : chiffrement SMB3 si l'appareil le permet, executables refuses
-#  - copie nocturne vers le Barracuda avec corbeille 90 jours, comme les photos
+# Home Cloud - "papiers" folder (personal documents) next to photos and films
+#  - /mnt/wd/papiers, accessible only by anto (neither Jellyfin nor Immich can access it)
+#  - SMB share [papiers]: SMB3 encryption when the device supports it, executables refused
+#  - nightly copy to the Barracuda with a 90-day trash ("corbeille"), like the photos
 set -euo pipefail
-if [ "$(id -u)" -ne 0 ]; then echo "ERREUR : a lancer en root."; exit 1; fi
+if [ "$(id -u)" -ne 0 ]; then echo "ERROR: must be run as root."; exit 1; fi
 if ! mountpoint -q /mnt/wd || ! mountpoint -q /mnt/barracuda; then
-  echo "ERREUR : disques non montes."; exit 1
+  echo "ERROR: disks not mounted."; exit 1
 fi
 CTID=$(pct list | awk 'NR>1 && $NF=="partage" {print $1}')
-if [ -z "$CTID" ]; then echo "ERREUR : conteneur 'partage' introuvable."; exit 1; fi
+if [ -z "$CTID" ]; then echo "ERROR: container 'partage' not found."; exit 1; fi
 if pct config "$CTID" | grep -q "mp=/srv/papiers"; then
-  echo "Le dossier papiers est deja branche sur le partage, arret."; exit 0
+  echo "The papiers folder is already attached to the share, stopping."; exit 0
 fi
 
-echo "=== 1. Dossier sur le WD (proprietaire : anto du conteneur = 101000) ==="
+echo "=== 1. Folder on the WD (owner: the container's anto = 101000) ==="
 mkdir -p /mnt/wd/papiers
 chown 101000:101000 /mnt/wd/papiers
 chmod 700 /mnt/wd/papiers
 ls -ldn /mnt/wd/papiers
 
 echo
-echo "=== 2. Montage dans le conteneur $CTID (court redemarrage du partage) ==="
+echo "=== 2. Mount in container $CTID (short restart of the share) ==="
 MP=""
 for i in $(seq 0 9); do
   if ! pct config "$CTID" | grep -q "^mp$i:"; then MP="mp$i"; break; fi
 done
 pct set "$CTID" -"$MP" /mnt/wd/papiers,mp=/srv/papiers
-echo "Montage $MP : /mnt/wd/papiers -> /srv/papiers"
+echo "Mount $MP: /mnt/wd/papiers -> /srv/papiers"
 pct reboot "$CTID"
 for i in $(seq 1 30); do
   if pct exec "$CTID" -- systemctl is-active --quiet smbd 2>/dev/null; then break; fi
@@ -36,7 +36,7 @@ done
 pct exec "$CTID" -- ls -ld /srv/papiers
 
 echo
-echo "=== 3. Partage Samba [papiers] ==="
+echo "=== 3. Samba share [papiers] ==="
 pct exec "$CTID" -- cp -a /etc/samba/smb.conf /etc/samba/smb.conf.avant-papiers
 pct exec "$CTID" -- bash -c 'cat >> /etc/samba/smb.conf <<FIN_SMB
 
@@ -51,23 +51,23 @@ pct exec "$CTID" -- bash -c 'cat >> /etc/samba/smb.conf <<FIN_SMB
    delete veto files = no
 FIN_SMB'
 if pct exec "$CTID" -- testparm -s >/dev/null 2>&1; then
-  echo "Configuration Samba valide"
+  echo "Samba configuration is valid"
 else
   pct exec "$CTID" -- cp -a /etc/samba/smb.conf.avant-papiers /etc/samba/smb.conf
-  echo "ERREUR dans smb.conf : ancienne configuration remise."; exit 1
+  echo "ERROR in smb.conf: previous configuration restored."; exit 1
 fi
 pct exec "$CTID" -- systemctl reload smbd
 pct exec "$CTID" -- runuser -u anto -- touch /srv/papiers/.test
 pct exec "$CTID" -- rm -f /srv/papiers/.test
-echo "anto : ECRITURE OK"
+echo "anto: WRITE OK"
 
 echo
-echo "=== 4. Copie nocturne : photos ET papiers vers le Barracuda ==="
+echo "=== 4. Nightly copy: photos AND papiers to the Barracuda ==="
 cp -a /usr/local/sbin/copie-photos.sh /usr/local/sbin/copie-photos.sh.avant-papiers
 cat > /usr/local/sbin/copie-photos.sh <<'FIN_COPIE'
 #!/bin/bash
-# Home Cloud - copie quotidienne vers le Barracuda : photos + papiers
-# Les fichiers supprimes ou modifies sur le WD sont gardes 90 jours dans "corbeille".
+# Home Cloud - daily copy to the Barracuda: photos + papiers (documents)
+# Files deleted or modified on the WD are kept for 90 days in "corbeille" (trash).
 set -uo pipefail
 
 DOSSIERS="photos papiers"
@@ -77,41 +77,41 @@ mkdir -p /var/lib/homecloud
 
 echec() { echo "ECHEC $(date '+%Y-%m-%d %H:%M') : $1" | tee "$STATUT"; exit 1; }
 
-mountpoint -q /mnt/wd || echec "le WD n'est pas monte"
-mountpoint -q /mnt/barracuda || echec "le Barracuda n'est pas monte"
+mountpoint -q /mnt/wd || echec "the WD is not mounted"
+mountpoint -q /mnt/barracuda || echec "the Barracuda is not mounted"
 
 TOTAL=0
 for NOM in $DOSSIERS; do
   SOURCE=/mnt/wd/$NOM/
   DEST=/mnt/barracuda/copie-$NOM/actuel/
   CORBEILLE=/mnt/barracuda/copie-$NOM/corbeille
-  [ -d "$SOURCE" ] || echec "dossier source $NOM introuvable"
+  [ -d "$SOURCE" ] || echec "source folder $NOM not found"
   mkdir -p "$DEST" "$CORBEILLE"
   chmod 700 "/mnt/barracuda/copie-$NOM"
 
   NB_SOURCE=$(find "$SOURCE" -type f | wc -l)
   NB_DEST=$(find "$DEST" -type f | wc -l)
   if [ "$NB_SOURCE" -eq 0 ] && [ "$NB_DEST" -gt 0 ]; then
-    echec "$NOM : source vide alors que la copie contient $NB_DEST fichiers, copie annulee par securite"
+    echec "$NOM: source is empty while the copy holds $NB_DEST files, copy cancelled as a safety measure"
   fi
 
   nice -n 19 ionice -c3 rsync -a --delete --backup --backup-dir="$CORBEILLE/$JOUR" --stats "$SOURCE" "$DEST"
   CODE=$?
-  [ "$CODE" -eq 0 ] || echec "$NOM : rsync a renvoye le code $CODE"
+  [ "$CODE" -eq 0 ] || echec "$NOM: rsync returned code $CODE"
 
   find "$CORBEILLE" -mindepth 1 -maxdepth 1 -type d -mtime +90 -exec rm -rf {} +
   TOTAL=$((TOTAL + NB_SOURCE))
 done
 
-echo "OK $(date '+%Y-%m-%d %H:%M') : $TOTAL fichiers dans la copie (photos + papiers)" | tee "$STATUT"
+echo "OK $(date '+%Y-%m-%d %H:%M') : $TOTAL files in the copy (photos + papiers)" | tee "$STATUT"
 FIN_COPIE
 chmod 755 /usr/local/sbin/copie-photos.sh
 systemctl start copie-photos.service
-echo -n "Statut : "; cat /var/lib/homecloud/copie-photos.statut
+echo -n "Status: "; cat /var/lib/homecloud/copie-photos.statut
 ls -ld /mnt/barracuda/copie-*/actuel
 
 echo
-echo "=== 5. Page de liens ==="
+echo "=== 5. Links page ==="
 LIENS=/opt/supervision/web/liens.html
 if [ -f "$LIENS" ] && ! grep -q 'partage-pf\\papiers' "$LIENS"; then
   cp -a "$LIENS" "$LIENS.avant-papiers"
@@ -124,13 +124,13 @@ ajout = ('<div class="lien"><div><div class="nom">Papiers</div><div class="det">
          '  <button data-copie="\\\\anto-partage-pf\\papiers">Copier</button></div>\n')
 if s.count(ancre) == 1:
     open(p, "w").write(s.replace(ancre, ancre + ajout))
-    print("Lien Papiers ajoute a la page /liens")
+    print("Papiers link added to the /liens page")
 else:
-    print("Page /liens non modifiee (repere introuvable)")
+    print("/liens page not modified (anchor not found)")
 FIN_LIENS
 fi
 
 echo
-echo "TERMINE."
-echo "PC     : \\\\anto-partage-pf\\papiers   (ou \\\\192.168.1.26\\papiers a la maison)"
-echo "iPhone : app Fichiers > serveur anto-partage-pf > papiers"
+echo "DONE."
+echo "PC     : \\\\anto-partage-pf\\papiers   (or \\\\192.168.1.26\\papiers at home)"
+echo "iPhone : Files app > server anto-partage-pf > papiers"

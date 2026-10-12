@@ -1,5 +1,5 @@
 [Unit]
-Description=Releve FinOps chaque minute
+Description=FinOps reading every minute
 
 [Timer]
 OnBootSec=1min

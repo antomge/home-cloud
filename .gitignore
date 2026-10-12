@@ -1,7 +1,7 @@
-# Secrets et fichiers d'environnement : jamais dans le depot
+# Secrets and environment files: never in the repository
 *.env
-!*.env.exemple
-# Archives d'export et sauvegardes
+!*.env.example
+# Export archives and backups
 *.tar.gz
 *.avant-*
 __pycache__/

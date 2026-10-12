@@ -1,5 +1,5 @@
 [Unit]
-Description=Home Cloud - tri des photos par annee et par mois
+Description=Home Cloud - photo sorting by year and month
 RequiresMountsFor=/mnt/wd
 
 [Service]

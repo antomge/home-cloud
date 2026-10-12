@@ -1,5 +1,5 @@
 [Unit]
-Description=Prix Azure chaque semaine
+Description=Azure prices every week
 
 [Timer]
 OnCalendar=Mon 06:00

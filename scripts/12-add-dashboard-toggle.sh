@@ -1,7 +1,7 @@
 #!/bin/bash
-# Home Cloud - bouton pour basculer entre l'ecran de supervision et la page des couts
+# Home Cloud - button to toggle between the monitoring screen and the costs page
 set -euo pipefail
-if [ "$(id -u)" -ne 0 ]; then echo "ERREUR : a lancer en root."; exit 1; fi
+if [ "$(id -u)" -ne 0 ]; then echo "ERROR: must be run as root."; exit 1; fi
 cp -a /opt/supervision/web/index.html /opt/supervision/web/index.html.avant-bascule
 cp -a /opt/supervision/web/finops.html /opt/supervision/web/finops.html.avant-bascule
 python3 - <<'FIN_CORRECTIF'
@@ -16,17 +16,17 @@ BOUTON_CSS = (".bascule{display:inline-flex;align-items:center;gap:8px;padding:1
 
 def remplacer(texte, avant, apres, nom):
     if texte.count(avant) != 1:
-        sys.exit(f"ERREUR : repere introuvable dans {nom}, rien n'a ete modifie.")
+        sys.exit(f"ERROR: anchor not found ({nom}), nothing was modified.")
     return texte.replace(avant, apres)
 
 
 i = open(INDEX).read()
 f = open(FINOPS).read()
 if 'class="bascule"' in i:
-    print("Bouton deja installe, rien a faire.")
+    print("Button already installed, nothing to do.")
     sys.exit(0)
 
-# Ecran principal : curseur visible + bouton vers la page des couts
+# Main screen: visible cursor + button to the costs page
 i = remplacer(i, "overflow:hidden;cursor:none}", "overflow:hidden}", "l'ecran principal")
 i = remplacer(i, ".mono{font-family:var(--mono)}", ".mono{font-family:var(--mono)}\n" + BOUTON_CSS, "l'ecran principal")
 i = remplacer(i, '''  <div style="display:flex;align-items:center;gap:28px">
@@ -35,7 +35,9 @@ i = remplacer(i, '''  <div style="display:flex;align-items:center;gap:28px">
     <a class="bascule" href="/finops">COÛTS &nbsp;›</a>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">''', "l'ecran principal")
 
-# Page FinOps : bouton de retour + mise en page large pour l'ecran du serveur
+# FinOps page: back button + wide layout for the server's screen
+if 'class="bascule"' in f:   # the FinOps page may already ship with the button (11-install-finops.sh)
+    remplacer = lambda texte, avant, apres, nom: texte   # nothing to change on that page
 f = remplacer(f, '''  <div class="sous"><a href="/">← Écran de supervision</a></div>''',
               '''  <a class="bascule" href="/">‹ &nbsp;SUPERVISION</a>''', "la page FinOps")
 f = remplacer(f, "a{color:var(--accent)}", "a{color:var(--accent)}\n" + BOUTON_CSS +
@@ -57,7 +59,7 @@ f = remplacer(f, '''</section>
 
 open(INDEX, "w").write(i)
 open(FINOPS, "w").write(f)
-print("Bouton de bascule installe sur les deux pages, curseur visible.")
+print("Toggle button installed on both pages, cursor visible.")
 FIN_CORRECTIF
 systemctl restart ecran-supervision.service
-echo "TERMINE : l'ecran redemarre avec le bouton COUTS en haut a droite."
+echo "DONE: the screen restarts with the COUTS (costs) button in the top right corner."

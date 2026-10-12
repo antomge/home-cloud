@@ -1,10 +1,10 @@
 #!/bin/bash
 # =====================================================================
-# Home Cloud - installation de l'ecran de supervision (partie donnees)
-#  - collecteur de mesures : /opt/supervision/collecteur.py (127.0.0.1:8088)
-#  - page de l'ecran       : /opt/supervision/web/index.html
-#  - releve SMART          : /usr/local/sbin/releve-smart.py (toutes les 10 min)
-#  - acces Proxmox en LECTURE SEULE (role PVEAuditor) par jeton d'API
+# Home Cloud - monitoring dashboard install (data side)
+#  - metrics collector : /opt/supervision/collecteur.py (127.0.0.1:8088)
+#  - dashboard page    : /opt/supervision/web/index.html
+#  - SMART readout     : /usr/local/sbin/releve-smart.py (every 10 min)
+#  - READ-ONLY Proxmox access (PVEAuditor role) via API token
 # =====================================================================
 set -euo pipefail
 
@@ -12,33 +12,33 @@ JELLYFIN_URL="http://192.168.1.27:8096"
 INTERFACE="nic0"
 NOEUD="serveur"
 
-if [ "$(id -u)" -ne 0 ]; then echo "ERREUR : a lancer en root."; exit 1; fi
-if ! ip link show "$INTERFACE" >/dev/null 2>&1; then echo "ERREUR : interface $INTERFACE introuvable."; exit 1; fi
+if [ "$(id -u)" -ne 0 ]; then echo "ERROR: must be run as root."; exit 1; fi
+if ! ip link show "$INTERFACE" >/dev/null 2>&1; then echo "ERROR: interface $INTERFACE not found."; exit 1; fi
 
-echo "=== 1. Cle d'API Jellyfin ==="
-read -r -s -p "Colle la cle d'API Jellyfin (nom 'ecran') puis Entree : " JF_CLE < /dev/tty; echo
-if [ -z "$JF_CLE" ]; then echo "ERREUR : cle vide."; exit 1; fi
+echo "=== 1. Jellyfin API key ==="
+read -r -s -p "Paste the Jellyfin API key (named 'ecran') then press Enter: " JF_CLE < /dev/tty; echo
+if [ -z "$JF_CLE" ]; then echo "ERROR: empty key."; exit 1; fi
 if curl -s -o /dev/null -w "%{http_code}" -H "Authorization: MediaBrowser Token=\"$JF_CLE\"" "$JELLYFIN_URL/Items/Counts" | grep -q 200; then
-  echo "Cle Jellyfin valide"
+  echo "Jellyfin key is valid"
 else
-  echo "ATTENTION : Jellyfin refuse cette cle (on continue, tu pourras la corriger dans /etc/supervision.env)"
+  echo "WARNING: Jellyfin rejects this key (continuing, you can fix it in /etc/supervision.env)"
 fi
 
 echo
-echo "=== 2. Utilisateur systeme et dossiers ==="
+echo "=== 2. System user and folders ==="
 id supervision >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin supervision
 mkdir -p /opt/supervision/web /var/lib/homecloud
 chmod 755 /var/lib/homecloud
 
 echo
-echo "=== 3. Fichiers du collecteur, de la page et du releve SMART ==="
+echo "=== 3. Collector, page and SMART readout files ==="
 cat > /opt/supervision/collecteur.py <<'FIN_COLLECTEUR'
 #!/usr/bin/env python3
-"""Home Cloud - collecteur de mesures pour l'ecran de supervision.
+"""Home Cloud - metrics collector for the monitoring dashboard.
 
-Sert la page /opt/supervision/web/index.html et l'API /api/etat.
-N'ecoute que sur 127.0.0.1 : rien n'est expose sur le reseau.
-Bibliotheque standard uniquement (aucune dependance a installer).
+Serves the page /opt/supervision/web/index.html and the /api/etat API.
+Listens on 127.0.0.1 only: nothing is exposed on the network.
+Standard library only (no dependency to install).
 """
 import glob
 import json
@@ -56,7 +56,7 @@ INTERFACE = os.environ.get("INTERFACE", "nic0")
 NOEUD = os.environ.get("NOEUD", "serveur")
 JF_URL = os.environ.get("JELLYFIN_URL", "").rstrip("/")
 JF_CLE = os.environ.get("JELLYFIN_CLE", "")
-PVE_JETON = os.environ.get("PVE_JETON", "")  # forme : utilisateur@pve!nom=secret
+PVE_JETON = os.environ.get("PVE_JETON", "")  # format: user@pve!name=secret
 PAGE = os.environ.get("PAGE", "/opt/supervision/web/index.html")
 ETAT_DIR = os.environ.get("ETAT_DIR", "/var/lib/homecloud")
 DUMP_DIR = os.environ.get("DUMP_DIR", "/mnt/wd/sauvegardes/dump")
@@ -67,8 +67,8 @@ DISQUES = [
     ("Système", "Kingston A400 · 480 Go", "/"),
 ]
 
-# Certificat auto-signe de Proxmox : verification desactivee UNIQUEMENT
-# pour l'appel vers 127.0.0.1 (le serveur lui-meme).
+# Proxmox self-signed certificate: verification disabled ONLY
+# for the call to 127.0.0.1 (the server itself).
 CTX_LOCAL = ssl.create_default_context()
 CTX_LOCAL.check_hostname = False
 CTX_LOCAL.verify_mode = ssl.CERT_NONE
@@ -82,12 +82,12 @@ def maj(**valeurs):
         etat.update(valeurs)
 
 
-# ---------- Mesures rapides (chaque seconde) ----------
+# ---------- Fast metrics (every second) ----------
 
 def lire_cpu():
     with open("/proc/stat") as f:
         v = [int(x) for x in f.readline().split()[1:]]
-    return sum(v), v[3] + v[4]  # total, inactif (idle + iowait)
+    return sum(v), v[3] + v[4]  # total, idle (idle + iowait)
 
 
 def lire_reseau():
@@ -95,7 +95,7 @@ def lire_reseau():
         for ligne in f:
             if ligne.strip().startswith(INTERFACE + ":"):
                 c = ligne.split(":", 1)[1].split()
-                return int(c[0]), int(c[8])  # octets recus, octets envoyes
+                return int(c[0]), int(c[8])  # bytes received, bytes sent
     return 0, 0
 
 
@@ -134,14 +134,14 @@ def lire_texte(chemin):
 
 
 def lire_frequences():
-    """Frequence actuelle de chaque coeur en GHz, plafond autorise, maximum materiel, turbo."""
+    """Current frequency of each core in GHz, allowed cap, hardware maximum, turbo."""
     coeurs = []
     fichiers = glob.glob(CPUFREQ + "/cpu[0-9]*/cpufreq/scaling_cur_freq")
-    for f in sorted(fichiers, key=lambda c: int(c.split("/")[-3][3:])):   # cpu0, cpu1… cpu10 dans l'ordre
+    for f in sorted(fichiers, key=lambda c: int(c.split("/")[-3][3:])):   # cpu0, cpu1... cpu10 in order
         v = lire_texte(f)
         if v and v.isdigit():
-            coeurs.append(int(v) / 1e6)              # le noyau donne des kHz
-    if not coeurs:                                   # repli si cpufreq est absent
+            coeurs.append(int(v) / 1e6)              # the kernel reports kHz
+    if not coeurs:                                   # fallback if cpufreq is missing
         try:
             with open("/proc/cpuinfo") as f:
                 coeurs = [float(l.split(":")[1]) / 1000 for l in f if l.startswith("cpu MHz")]
@@ -189,11 +189,11 @@ def boucle_rapide():
                 mem_total=mem_total, mem_util=mem_util, temp_cpu=lire_temp_cpu(), freq=lire_frequences(),
                 uptime=uptime, charge_moyenne=charge_moy, horodatage=t, pret=True)
             cpu_prec, net_prec, t_prec = cpu, net, t
-        except Exception as e:  # on ne laisse jamais la boucle mourir
+        except Exception as e:  # never let the loop die
             maj(erreur_rapide=str(e)[:200])
 
 
-# ---------- Mesures lentes (toutes les 15 s) ----------
+# ---------- Slow metrics (every 15 s) ----------
 
 def get_json(url, entetes=None, contexte=None, delai=4):
     req = urllib.request.Request(url, headers=entetes or {})
@@ -219,7 +219,7 @@ def lire_disques():
 def lire_jellyfin():
     if not (JF_URL and JF_CLE):
         return {"ok": False, "erreur": "non configuré"}
-    # En-tete d'authentification moderne (les anciens en-tetes "X-Emby-Token" sont refuses par defaut depuis Jellyfin 10.11+)
+    # Modern authentication header (the old "X-Emby-Token" headers are rejected by default since Jellyfin 10.11+)
     h = {"Authorization": f'MediaBrowser Token="{JF_CLE}"'}
     try:
         c = get_json(JF_URL + "/Items/Counts", h)
@@ -312,7 +312,7 @@ def boucle_lente():
         time.sleep(15)
 
 
-# ---------- Serveur web ----------
+# ---------- Web server ----------
 
 class Gestionnaire(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -338,7 +338,7 @@ class Gestionnaire(BaseHTTPRequestHandler):
         self.wfile.write(corps)
 
     def log_message(self, *args):
-        pass  # pas de journal pour chaque requete
+        pass  # no log line for every request
 
 
 if __name__ == "__main__":
@@ -348,20 +348,20 @@ if __name__ == "__main__":
 FIN_COLLECTEUR
 cat > /usr/local/sbin/releve-smart.py <<'FIN_SMART'
 #!/usr/bin/env python3
-"""Home Cloud - releve SMART des disques (lance par root toutes les 10 min).
-Ecrit /var/lib/homecloud/smart.json, lu par le collecteur de l'ecran."""
+"""Home Cloud - disk SMART readout (run by root every 10 min).
+Writes /var/lib/homecloud/smart.json, read by the dashboard collector."""
 import json
 import os
 import subprocess
 import time
 
 DISQUES = {
-    "NUMERO_SERIE_WD": ("WD Red Plus 4 To", "Données"),
-    "NUMERO_SERIE_BARRACUDA": ("Barracuda 2 To", "Copie photos"),
-    "NUMERO_SERIE_SSD": ("Kingston A400", "Système"),
+    "DISK_SERIAL_WD": ("WD Red Plus 4 To", "Données"),
+    "DISK_SERIAL_BARRACUDA": ("Barracuda 2 To", "Copie photos"),
+    "DISK_SERIAL_SSD": ("Kingston A400", "Système"),
 }
-# Endurance garantie par le fabricant (To ecrits, ou "TBW") : seulement pour les SSD
-ENDURANCE_TO = {"NUMERO_SERIE_SSD": 160}  # Kingston A400 480 Go : 160 To
+# Manufacturer-rated endurance (TB written, or "TBW"): SSDs only
+ENDURANCE_TO = {"DISK_SERIAL_SSD": 160}  # Kingston A400 480 GB: 160 TB
 SORTIE = "/var/lib/homecloud/smart.json"
 
 liste = json.loads(subprocess.run(["lsblk", "-dJo", "NAME,SERIAL"],
@@ -390,7 +390,7 @@ for b in liste.get("blockdevices", []):
         "realloues": brut(5), "en_attente": brut(197),
         "incorrigibles": brut(198), "crc": brut(199),
         "vie_ssd": attrs[231]["value"] if 231 in attrs else None,
-        # Attribut 241 = volume ecrit en Gio sur ce SSD (sur un disque dur Seagate il compte autre chose)
+        # Attribute 241 = GiB written on this SSD (on a Seagate hard drive it counts something else)
         "ecrits_gio": brut(241) if serie in ENDURANCE_TO else None,
         "endurance_to": ENDURANCE_TO.get(serie),
     })
@@ -401,7 +401,7 @@ with open(tmp, "w") as f:
     json.dump({"date": time.time(), "disques": resultat}, f)
 os.chmod(tmp, 0o644)
 os.replace(tmp, SORTIE)
-print(f"{len(resultat)} disque(s) releve(s)")
+print(f"{len(resultat)} disk(s) read")
 FIN_SMART
 cat > /opt/supervision/web/index.html <<'FIN_PAGE'
 <!doctype html>
@@ -754,20 +754,20 @@ meteo(); setInterval(meteo, 15 * 60 * 1000);
 FIN_PAGE
 chmod 755 /opt/supervision/collecteur.py /usr/local/sbin/releve-smart.py
 chmod 644 /opt/supervision/web/index.html
-echo "Fichiers installes"
+echo "Files installed"
 
 echo
-echo "=== 4. Acces Proxmox en lecture seule (utilisateur supervision@pve, role PVEAuditor) ==="
+echo "=== 4. Read-only Proxmox access (user supervision@pve, PVEAuditor role) ==="
 if ! pveum user list --output-format json | grep -q '"supervision@pve"'; then
   pveum user add supervision@pve --comment "Ecran de supervision (lecture seule)"
 fi
 pveum acl modify / --users supervision@pve --roles PVEAuditor
 pveum user token remove supervision@pve ecran >/dev/null 2>&1 || true
 SECRET=$(pveum user token add supervision@pve ecran --privsep 0 --comment "Collecteur de l'ecran" --output-format json | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])')
-echo "Jeton cree : supervision@pve!ecran (lecture seule)"
+echo "Token created: supervision@pve!ecran (read-only)"
 
 echo
-echo "=== 5. Fichier de configuration protege (/etc/supervision.env) ==="
+echo "=== 5. Protected configuration file (/etc/supervision.env) ==="
 umask 077
 cat > /etc/supervision.env <<FIN_ENV
 INTERFACE=$INTERFACE
@@ -783,10 +783,10 @@ unset JF_CLE SECRET
 ls -l /etc/supervision.env
 
 echo
-echo "=== 6. Services systemd ==="
+echo "=== 6. systemd services ==="
 cat > /etc/systemd/system/supervision.service <<'FIN_UNITE'
 [Unit]
-Description=Home Cloud - collecteur de l'ecran de supervision
+Description=Home Cloud - monitoring dashboard collector
 After=network-online.target pve-cluster.service
 Wants=network-online.target
 
@@ -808,7 +808,7 @@ FIN_UNITE
 
 cat > /etc/systemd/system/releve-smart.service <<'FIN_UNITE'
 [Unit]
-Description=Home Cloud - releve SMART des disques pour l'ecran
+Description=Home Cloud - disk SMART readout for the dashboard
 
 [Service]
 Type=oneshot
@@ -818,7 +818,7 @@ FIN_UNITE
 
 cat > /etc/systemd/system/releve-smart.timer <<'FIN_UNITE'
 [Unit]
-Description=Releve SMART toutes les 10 minutes
+Description=SMART readout every 10 minutes
 
 [Timer]
 OnBootSec=1min
@@ -835,26 +835,26 @@ systemctl enable supervision.service
 systemctl restart supervision.service
 
 echo
-echo "=== 7. Verification (20 secondes) ==="
+echo "=== 7. Check (20 seconds) ==="
 sleep 20
-echo -n "Collecteur : "; systemctl is-active supervision
+echo -n "Collector  : "; systemctl is-active supervision
 python3 - <<'FIN_VERIF'
 import json, urllib.request
 e = json.load(urllib.request.urlopen("http://127.0.0.1:8088/api/etat", timeout=5))
 def ok(v):
-    return "OK " if v else "NON"
+    return "OK " if v else "NO "
 jf, px, ts = e.get("jellyfin", {}), e.get("proxmox", {}), e.get("tailscale", {})
 sm, cp, sv = e.get("smart", {}), e.get("copie", {}), e.get("sauvegardes", {})
-print(f"Processeur  : {e.get('cpu')} %   Memoire : {e.get('mem_util', 0) / 2**30:.1f} Gio   Temp CPU : {e.get('temp_cpu')} C")
-print(f"Reseau      : {e.get('reseau_tx')} Mbit/s envoyes")
+print(f"CPU         : {e.get('cpu')} %   Memory : {e.get('mem_util', 0) / 2**30:.1f} GiB   CPU temp : {e.get('temp_cpu')} C")
+print(f"Network     : {e.get('reseau_tx')} Mbit/s sent")
 for d in e.get("disques", []):
-    print(f"Disque      : {d['nom']:<18} {'monte' if d.get('monte') else 'NON MONTE'}")
-print(f"[{ok(jf.get('ok'))}] Jellyfin    : {jf.get('films', jf.get('erreur'))} film(s)")
-print(f"[{ok(px.get('ok'))}] Proxmox     : {len(px.get('invites', [])) if px.get('ok') else px.get('erreur')} invite(s), version {px.get('version', '?')}")
-print(f"[{ok(ts.get('ok'))}] Tailscale   : {ts.get('en_ligne', ts.get('erreur'))} appareil(s) en ligne")
-print(f"[{ok(sm.get('disques'))}] SMART       : {len(sm.get('disques', []))} disque(s)")
-print(f"[{ok(cp.get('ok'))}] Copie       : {cp.get('texte')}")
-print(f"[{ok(sv.get('ok'))}] Sauvegardes : {sv.get('nombre')} fichier(s)")
+    print(f"Disk        : {d['nom']:<18} {'mounted' if d.get('monte') else 'NOT MOUNTED'}")
+print(f"[{ok(jf.get('ok'))}] Jellyfin    : {jf.get('films', jf.get('erreur'))} movie(s)")
+print(f"[{ok(px.get('ok'))}] Proxmox     : {len(px.get('invites', [])) if px.get('ok') else px.get('erreur')} guest(s), version {px.get('version', '?')}")
+print(f"[{ok(ts.get('ok'))}] Tailscale   : {ts.get('en_ligne', ts.get('erreur'))} device(s) online")
+print(f"[{ok(sm.get('disques'))}] SMART       : {len(sm.get('disques', []))} disk(s)")
+print(f"[{ok(cp.get('ok'))}] Photo copy  : {cp.get('texte')}")
+print(f"[{ok(sv.get('ok'))}] Backups     : {sv.get('nombre')} file(s)")
 FIN_VERIF
 echo
-echo "TERMINE. La page est servie sur http://127.0.0.1:8088 (uniquement depuis le serveur)."
+echo "DONE. The page is served at http://127.0.0.1:8088 (from the server only)."
